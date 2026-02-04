@@ -211,10 +211,49 @@ interface ClientConfig {
   database?: string;
   user?: string;
   password?: string;
-  ssl?: boolean;
+  ssl?: boolean | SSLConfig;  // See SSL Configuration below
   maxConnections?: number;
 }
 ```
+
+### SSL Configuration
+
+que-ts supports SSL/TLS connections with client certificates:
+
+```typescript
+import { Client } from 'que-ts';
+import * as fs from 'fs';
+
+// Basic SSL
+const client = new Client({
+  host: 'your-database.com',
+  port: 5432,
+  database: 'mydb',
+  user: 'myuser',
+  password: 'mypassword',
+  ssl: {
+    rejectUnauthorized: true,
+  }
+});
+
+// SSL with client certificates
+const clientWithCerts = new Client({
+  host: 'your-database.com',
+  port: 5432,
+  database: 'mydb',
+  user: 'myuser',
+  password: 'mypassword',
+  ssl: {
+    rejectUnauthorized: true,
+    cert: fs.readFileSync('./certs/client-cert.pem'),
+    key: fs.readFileSync('./certs/client-key.pem'),
+    ca: fs.readFileSync('./certs/ca-cert.pem'),
+    passphrase: 'optional-key-passphrase', // For encrypted keys
+  }
+});
+```
+
+For detailed SSL configuration including AWS RDS, Google Cloud SQL, Azure, and certificate setup, see [SSL.md](SSL.md).
 
 ### WorkerOptions
 

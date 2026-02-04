@@ -1,5 +1,5 @@
-import { PoolClient } from 'pg';
-import { Job, EnqueueOptions, ClientConfig, JSONArray } from './types';
+import { PoolClient } from "pg";
+import { Job, EnqueueOptions, ClientConfig, JSONArray } from "./types";
 export declare class Client {
     private pool;
     constructor(config?: ClientConfig);

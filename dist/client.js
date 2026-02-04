@@ -21,32 +21,32 @@ class Client {
         });
     }
     async enqueue(jobClass, args = [], options = {}) {
-        const { priority = 100, runAt = new Date(), queue = '' } = options;
+        const { priority = 100, runAt = new Date(), queue = "" } = options;
         const argsJson = (0, utils_1.formatJobArgs)(args);
         const result = await this.pool.query(sql_1.SQL_QUERIES.ENQUEUE_JOB, [
             jobClass,
             argsJson,
             priority,
             runAt,
-            queue
+            queue,
         ]);
         const row = result.rows[0];
         return new job_1.JobInstance(row, this.pool);
     }
     async enqueueInTx(client, jobClass, args = [], options = {}) {
-        const { priority = 100, runAt = new Date(), queue = '' } = options;
+        const { priority = 100, runAt = new Date(), queue = "" } = options;
         const argsJson = (0, utils_1.formatJobArgs)(args);
         const result = await client.query(sql_1.SQL_QUERIES.ENQUEUE_JOB, [
             jobClass,
             argsJson,
             priority,
             runAt,
-            queue
+            queue,
         ]);
         const row = result.rows[0];
         return new job_1.JobInstance(row, this.pool);
     }
-    async lockJob(queue = '') {
+    async lockJob(queue = "") {
         const result = await this.pool.query(sql_1.SQL_QUERIES.LOCK_JOB, [queue]);
         if (result.rows.length === 0) {
             return null;
@@ -57,7 +57,7 @@ class Client {
     async close() {
         await this.pool.end();
         // Small delay to ensure all connections are fully closed
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, 50));
     }
 }
 exports.Client = Client;

@@ -45,6 +45,33 @@ export interface WorkMap {
   [jobClass: string]: WorkFunction;
 }
 
+/**
+ * SSL configuration options for PostgreSQL connection
+ */
+export interface SSLConfig extends ConnectionOptions {
+  /**
+   * Reject unauthorized certificates (default: true for security)
+   * Set to false only in development/testing environments
+   */
+  rejectUnauthorized?: boolean;
+  /**
+   * Path to client certificate file (.crt or .pem)
+   */
+  cert?: string | Buffer;
+  /**
+   * Path to client private key file (.key)
+   */
+  key?: string | Buffer;
+  /**
+   * Path to CA certificate file to verify server certificate
+   */
+  ca?: string | Buffer | Array<string | Buffer>;
+  /**
+   * Passphrase for the private key if encrypted
+   */
+  passphrase?: string;
+}
+
 export interface ClientConfig {
   connectionString?: string;
   host?: string;
@@ -52,7 +79,13 @@ export interface ClientConfig {
   database?: string;
   user?: string;
   password?: string;
-  ssl?: boolean | undefined;
+  /**
+   * SSL configuration:
+   * - false: No SSL
+   * - true: SSL with default settings (rejectUnauthorized: true)
+   * - SSLConfig object: Custom SSL configuration with certificates
+   */
+  ssl?: boolean | SSLConfig;
   dialectOptions?: object;
   maxConnections?: number;
 }

@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 
 export const TEST_DB_CONFIG = {
   host: process.env.TEST_DB_HOST || 'localhost',
-  port: parseInt(process.env.TEST_DB_PORT || '5432'),
+  port: parseInt(process.env.TEST_DB_PORT || '5433'),
   database: process.env.TEST_DB_NAME || 'que_test',
   user: process.env.TEST_DB_USER || 'que_user',
   password: process.env.TEST_DB_PASSWORD || 'que_password',

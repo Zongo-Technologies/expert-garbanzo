@@ -6,13 +6,15 @@ export interface WorkerInterface<T extends JSONValue> {
   worker: (args: T | undefined) => Promise<Error | void>;
 }
 
-class Que {
+export class Que {
   private client: Client;
   private worker: Worker;
+  private queueName: string;
 
-  constructor() {
+  constructor(queueName: string = '') {
+    this.queueName = queueName;
     this.client = new Client(TEST_DB_CONFIG);
-    this.worker = new Worker(TEST_DB_CONFIG, { interval: 1000 });
+    this.worker = new Worker(TEST_DB_CONFIG, { interval: 100, queue: queueName }); // Reduced interval for faster tests
 
     process.on('SIGINT', async () => {
       console.log('Shutting down worker...');
@@ -54,9 +56,6 @@ class Que {
 
   async enqueue<T extends JSONValue>(cls: abstract new (...args: any[]) => WorkerInterface<T>, args: T, options?: Omit<EnqueueOptions, 'queue'>) {
     // Pass args directly, no need to stringify since client handles serialization
-    return await this.client.enqueue(cls.name, [args], options);
+    return await this.client.enqueue(cls.name, [args], { ...options, queue: this.queueName });
   }
 }
-
-// Export a singleton instance of the Que class
-export const que = new Que();

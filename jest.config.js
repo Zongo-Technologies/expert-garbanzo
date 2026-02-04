@@ -30,5 +30,7 @@ module.exports = {
   // Don't exit on first test failure when running with Docker
   bail: false,
   // Force exit to handle lingering connections
-  forceExit: true
+  forceExit: true,
+  // Run tests serially to avoid worker interference
+  maxWorkers: 1
 };

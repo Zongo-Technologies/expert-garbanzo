@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(mkdir:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npm test)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run build:*)",
+      "Bash(node:*)",
+      "Bash(npm test:*)",
+      "Bash(timeout 10 npm test -- ./tests/impl)"
+    ],
+    "deny": []
+  }
+}

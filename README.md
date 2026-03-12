@@ -15,6 +15,8 @@ A TypeScript job queue library for PostgreSQL, compatible with Ruby Que and que-
 - **Retry logic**: Exponential backoff for failed jobs
 - **Multiple queues**: Support for named queues and priorities
 - **Transaction support**: Enqueue jobs within existing database transactions
+- **Web Dashboard**: Real-time monitoring and management UI (Express.js integration)
+- **SSL/TLS Support**: Secure connections with client certificates
 
 ## Installation
 
@@ -147,6 +149,46 @@ process.on('SIGINT', async () => {
   await client.close();
 });
 ```
+
+## Web Dashboard
+
+que-ts includes a beautiful, real-time web dashboard for monitoring and managing your job queue.
+
+```typescript
+import express from 'express';
+import { Pool } from 'pg';
+import { createDashboard } from 'que-ts/dashboard';
+
+const app = express();
+const pool = new Pool({ /* your config */ });
+
+// Mount dashboard at /admin/queue
+app.use('/admin/queue', createDashboard(pool, {
+  title: 'My App Queue',
+  refreshInterval: 3000,
+  auth: (req, res, next) => {
+    // Add your authentication logic
+    return req.isAuthenticated();
+  }
+}));
+
+app.listen(3000);
+// Visit http://localhost:3000/admin/queue
+```
+
+**Dashboard Features:**
+- 📊 Real-time statistics (total, ready, scheduled, failed jobs)
+- 📈 Visual analytics (charts by queue and job class)
+- 🔍 Advanced filtering (status, queue, job class)
+- 🔄 Job management (retry failed jobs, delete jobs)
+- 🔐 Built-in authentication support
+- 📱 Responsive design
+
+For complete dashboard documentation, see [DASHBOARD.md](DASHBOARD.md).
+
+## SSL Configuration
+
+For detailed SSL configuration including AWS RDS, Google Cloud SQL, Azure, and certificate setup, see [SSL.md](SSL.md).
 
 ## API Reference
 

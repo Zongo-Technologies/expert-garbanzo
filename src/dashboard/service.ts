@@ -283,13 +283,21 @@ export class DashboardService {
   async retryJob(jobId: number): Promise<boolean> {
     const result = await this.pool.query(
       `
-      UPDATE que_jobs 
-      SET error_count = 0, 
-          last_error = NULL, 
+      UPDATE que_jobs
+      SET error_count = 0,
+          last_error = NULL,
           run_at = NOW()
       WHERE job_id = $1
     `,
       [jobId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async updateJobArgs(jobId: number, args: unknown[]): Promise<boolean> {
+    const result = await this.pool.query(
+      'UPDATE que_jobs SET args = $1::jsonb WHERE job_id = $2',
+      [JSON.stringify(args), jobId]
     );
     return (result.rowCount ?? 0) > 0;
   }

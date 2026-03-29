@@ -1,26 +1,22 @@
-# Dashboard Documentation
+# Dashboard Guide
 
-A beautiful, real-time web dashboard for monitoring and managing your Que job queue.
+Complete guide for the worker-que web dashboard - a real-time monitoring and management interface for your job queue.
 
-## Features
+## Table of Contents
 
-- 📊 **Real-time Statistics** - Monitor total, ready, scheduled, and failed jobs
-- 📈 **Visual Analytics** - Charts showing job distribution by queue and class
-- 🔍 **Advanced Filtering** - Filter jobs by status, queue, and job class
-- 🔄 **Job Management** - Retry failed jobs or delete jobs directly from the UI
-- 🎨 **Modern UI** - Beautiful, responsive design that works on all devices
-- 🔐 **Authentication** - Built-in support for custom authentication
-- ⚡ **Auto-refresh** - Configurable real-time updates
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Authentication](#authentication)
+- [API Reference](#api-reference)
+- [Troubleshooting](#troubleshooting)
+- [Production Deployment](#production-deployment)
 
 ## Quick Start
 
 ### Installation
 
-The dashboard requires Express.js:
-
 ```bash
-npm install express
-npm install --save-dev @types/express  # If using TypeScript
+npm install worker-que express pg
 ```
 
 ### Basic Setup
@@ -28,7 +24,7 @@ npm install --save-dev @types/express  # If using TypeScript
 ```typescript
 import express from 'express';
 import { Pool } from 'pg';
-import { createDashboard } from 'que-ts/dashboard';
+import { createDashboard } from 'worker-que/dist/dashboard';
 
 const app = express();
 const pool = new Pool({
@@ -39,7 +35,7 @@ const pool = new Pool({
   password: 'password',
 });
 
-// Mount dashboard at /admin/queue
+// Mount dashboard
 app.use('/admin/queue', createDashboard(pool));
 
 app.listen(3000, () => {
@@ -47,110 +43,177 @@ app.listen(3000, () => {
 });
 ```
 
-That's it! Visit http://localhost:3000/admin/queue to see your dashboard.
+That's it! Visit `http://localhost:3000/admin/queue` to see your dashboard.
 
-## Configuration Options
+## Features
 
-### DashboardOptions
+### Real-time Statistics
+
+- **Total Jobs** - All jobs in the queue
+- **Ready** - Jobs ready to process
+- **Scheduled** - Jobs scheduled for future
+- **Failed** - Jobs that have errored
+
+### Visual Analytics
+
+- **Jobs by Queue** - Bar chart showing distribution across queues
+- **Jobs by Class** - Bar chart showing distribution by job type
+
+### Job Management
+
+- **Filter** - By status, queue, and job class
+- **Search** - Find specific jobs
+- **Pagination** - Browse through large job lists
+- **Retry** - Restart failed jobs
+- **Delete** - Remove jobs from queue
+
+### Recent Failures
+
+View the most recent failed jobs with:
+- Error messages
+- Error counts
+- Quick retry/delete actions
+
+## Configuration
+
+### Dashboard Options
 
 ```typescript
 interface DashboardOptions {
-  // Dashboard title (shown in header)
-  title?: string;                    // Default: 'Que Dashboard'
+  title?: string;                              // Dashboard title (default: 'Que Dashboard')
+  basePath?: string;                           // Base path for API routes (default: '/que')
+  refreshInterval?: number;                    // Auto-refresh interval in ms (default: 5000)
+  maxRecentFailures?: number;                  // Max failures to show (default: 50)
   
-  // Base path for API routes
-  basePath?: string;                 // Default: '/que'
+  // Built-in authentication (email/password)
+  auth?: {
+    email: string;                             // Login email
+    password: string;                          // Login password
+  };
   
-  // Auto-refresh interval in milliseconds
-  refreshInterval?: number;          // Default: 5000 (5 seconds)
-  
-  // Maximum number of recent failures to show
-  maxRecentFailures?: number;        // Default: 50
-  
-  // Authentication function
-  auth?: (req, res, next) => boolean | Promise<boolean>;
+  // Custom authentication middleware
+  customAuth?: (req, res, next) => boolean | Promise<boolean>;
 }
 ```
 
 ### Examples
 
-#### Custom Title and Refresh Rate
+#### Custom Title and Refresh
 
 ```typescript
 app.use('/queue', createDashboard(pool, {
   title: 'Production Job Queue',
+  basePath: '/queue',
   refreshInterval: 2000,  // Refresh every 2 seconds
 }));
 ```
 
-#### With Different Base Path
+#### Different Mount Path
 
 ```typescript
 app.use('/jobs', createDashboard(pool, {
-  basePath: '/jobs',  // Important: must match mount path
+  basePath: '/jobs',  // Must match mount path
 }));
+// Visit http://localhost:3000/jobs
 ```
 
 ## Authentication
 
-### Basic Authentication
+The dashboard provides **built-in email/password authentication** and supports custom authentication middleware.
+
+### Built-in Email/Password Authentication (Recommended)
+
+The easiest way to secure your dashboard is with the built-in authentication:
 
 ```typescript
 app.use('/admin/queue', createDashboard(pool, {
-  auth: (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
-    return apiKey === 'your-secret-api-key';
+  title: 'My Queue Dashboard',
+  basePath: '/admin/queue',
+  auth: {
+    email: 'admin@example.com',
+    password: 'your-secure-password'
   }
 }));
 ```
 
-### Session-based Authentication
+**Features:**
+- Secure login page with Microsoft Fluent Design
+- Session management with cookies
+- "Remember me" functionality (extends session to 30 days)
+- Automatic logout
+- User email displayed in dashboard header
+
+**Security Notes:**
+- Store credentials in environment variables (never commit passwords)
+- Use HTTPS in production
+- Use strong, unique passwords
+- Consider using bcrypt for password hashing in production
+
+**Environment Variables Example:**
+
+```typescript
+app.use('/admin/queue', createDashboard(pool, {
+  auth: {
+    email: process.env.DASHBOARD_EMAIL!,
+    password: process.env.DASHBOARD_PASSWORD!
+  }
+}));
+```
+
+`.env`:
+```bash
+DASHBOARD_EMAIL=admin@example.com
+DASHBOARD_PASSWORD=SecurePassword123!
+```
+
+### Custom Authentication
+
+For integration with existing auth systems, use `customAuth`:
+
+#### API Key Authentication
+
+```typescript
+app.use('/admin/queue', createDashboard(pool, {
+  customAuth: (req) => {
+    return req.headers['x-api-key'] === process.env.DASHBOARD_API_KEY;
+  }
+}));
+```
+
+**Usage:**
+```bash
+curl -H "X-API-Key: your-secret-key" http://localhost:3000/admin/queue/api/stats
+```
+
+#### Session-Based Authentication
 
 ```typescript
 import session from 'express-session';
 
 app.use(session({
-  secret: 'your-session-secret',
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
 }));
 
 app.use('/admin/queue', createDashboard(pool, {
-  auth: (req, res, next) => {
-    // Only allow authenticated admins
-    return req.session?.user?.role === 'admin';
+  customAuth: (req) => {
+    return req.session?.user?.isAdmin === true;
   }
 }));
 ```
 
-### Async Authentication (Database Check)
-
-```typescript
-app.use('/admin/queue', createDashboard(pool, {
-  auth: async (req, res, next) => {
-    const token = req.headers['authorization']?.split(' ')[1];
-    
-    if (!token) return false;
-    
-    try {
-      const user = await verifyToken(token);
-      return user.hasPermission('view-queue');
-    } catch {
-      return false;
-    }
-  }
-}));
-```
-
-### JWT Authentication
+#### JWT Authentication
 
 ```typescript
 import jwt from 'jsonwebtoken';
 
 app.use('/admin/queue', createDashboard(pool, {
-  auth: (req, res, next) => {
+  customAuth: (req) => {
     try {
-      const token = req.cookies.auth_token;
+      const token = req.headers.authorization?.split(' ')[1];
+      if (!token) return false;
+      
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       return decoded.role === 'admin';
     } catch {
@@ -160,9 +223,32 @@ app.use('/admin/queue', createDashboard(pool, {
 }));
 ```
 
-## API Routes
+#### Async Database Authentication
 
-The dashboard exposes several API routes that you can use programmatically:
+```typescript
+app.use('/admin/queue', createDashboard(pool, {
+  customAuth: async (req) => {
+    const token = req.headers.authorization;
+    const user = await verifyUserToken(token);
+    return user?.hasPermission('view-queue');
+  }
+}));
+```
+
+### No Authentication (Development Only)
+
+For local development only, you can omit authentication:
+
+```typescript
+// ⚠️ WARNING: NOT SECURE - Development only
+app.use('/admin/queue', createDashboard(pool, {
+  title: 'Dev Queue'
+}));
+```
+
+## API Reference
+
+The dashboard exposes REST API endpoints for programmatic access.
 
 ### GET /api/stats
 
@@ -193,18 +279,18 @@ Get queue statistics.
 
 ### GET /api/jobs
 
-Get paginated list of jobs with optional filters.
+Get paginated list of jobs with filters.
 
 **Query Parameters:**
-- `status`: Filter by status (`all`, `ready`, `scheduled`, `failed`)
-- `queue`: Filter by queue name
-- `jobClass`: Filter by job class
-- `limit`: Number of results per page (default: 50)
-- `offset`: Pagination offset (default: 0)
+- `status` - Filter by status (`all`, `ready`, `scheduled`, `failed`)
+- `queue` - Filter by queue name
+- `jobClass` - Filter by job class
+- `limit` - Results per page (default: 50)
+- `offset` - Pagination offset (default: 0)
 
 **Example:**
 ```
-GET /api/jobs?status=failed&queue=critical&limit=20&offset=0
+GET /api/jobs?status=failed&queue=critical&limit=20
 ```
 
 **Response:**
@@ -217,7 +303,7 @@ GET /api/jobs?status=failed&queue=critical&limit=20&offset=0
       "priority": 10,
       "runAt": "2024-01-15T14:30:00Z",
       "jobClass": "ProcessPayment",
-      "args": [{ "amount": 100, "userId": 456 }],
+      "args": [{ "amount": 100 }],
       "errorCount": 3,
       "lastError": "Payment gateway timeout"
     }
@@ -282,16 +368,16 @@ Get list of all job class names.
 
 **Response:**
 ```json
-["SendEmail", "ProcessPayment", "GenerateReport", "SendReminder"]
+["SendEmail", "ProcessPayment", "GenerateReport"]
 ```
 
 ## Programmatic Usage
 
-You can also use the dashboard service directly in your code:
+You can use the dashboard service directly in your code:
 
 ```typescript
 import { Pool } from 'pg';
-import { DashboardService } from 'que-ts/dashboard';
+import { DashboardService } from 'worker-que/dist/dashboard';
 
 const pool = new Pool({ /* config */ });
 const dashboard = new DashboardService(pool);
@@ -299,7 +385,6 @@ const dashboard = new DashboardService(pool);
 // Get statistics
 const stats = await dashboard.getStats();
 console.log(`Total jobs: ${stats.total}`);
-console.log(`Failed jobs: ${stats.failed}`);
 
 // Get jobs with filters
 const { jobs, total } = await dashboard.getJobs({
@@ -321,236 +406,221 @@ const queues = await dashboard.getQueues();
 const jobClasses = await dashboard.getJobClasses();
 ```
 
-## Integration Examples
+## Troubleshooting
 
-### With Existing Express App
+### Error: "Cannot GET /que/api/jobs"
 
-```typescript
-import express from 'express';
-import { Pool } from 'pg';
-import { createDashboard } from 'que-ts/dashboard';
+**Problem:** Dashboard routes not mounted.
 
-const app = express();
-const pool = new Pool({ /* config */ });
-
-// Your existing routes
-app.get('/', (req, res) => {
-  res.send('Home page');
-});
-
-app.get('/api/users', (req, res) => {
-  // Your API
-});
-
-// Add dashboard
-app.use('/admin/queue', createDashboard(pool, {
-  title: 'My App Queue',
-  auth: (req) => req.session?.isAdmin,
-}));
-
-app.listen(3000);
-```
-
-### With Multiple Workers
+**Solution:** Make sure you mount the dashboard with `app.use()`:
 
 ```typescript
-import express from 'express';
-import { Pool } from 'pg';
-import { createDashboard } from 'que-ts/dashboard';
-import { Worker } from 'que-ts';
+import { createDashboard } from 'worker-que/dist/dashboard';
 
-const app = express();
-const pool = new Pool({ /* config */ });
-
-// Create dashboard
-app.use('/queue', createDashboard(pool));
-
-// Start multiple workers
-const criticalWorker = new Worker(
-  { /* db config */ },
-  { queue: 'critical', interval: 100 }
-);
-
-const backgroundWorker = new Worker(
-  { /* db config */ },
-  { queue: 'background', interval: 5000 }
-);
-
-// Register handlers and start workers
-criticalWorker.register('ProcessPayment', handlePayment);
-backgroundWorker.register('GenerateReport', handleReport);
-
-criticalWorker.work();
-backgroundWorker.work();
-
-app.listen(3000);
-```
-
-### Behind a Proxy (nginx, etc.)
-
-If running behind a proxy, make sure to set the correct `basePath`:
-
-```typescript
-// nginx config:
-// location /app/queue {
-//   proxy_pass http://localhost:3000/queue;
-// }
-
-app.use('/queue', createDashboard(pool, {
-  basePath: '/queue',  // Not /app/queue - that's handled by nginx
+app.use('/que', createDashboard(pool, {
+  basePath: '/que',  // Must match mount path
 }));
 ```
 
-## Deployment Considerations
+### Dashboard Shows No Data
 
-### Production Checklist
+**Problem:** Database table doesn't exist or is empty.
 
-- [ ] **Enable Authentication** - Never deploy without auth in production
-- [ ] **Use HTTPS** - Protect sensitive job data
-- [ ] **Restrict Access** - Use firewall rules or network policies
-- [ ] **Monitor Performance** - Dashboard queries can impact database
-- [ ] **Set Reasonable Refresh Interval** - Don't overwhelm your database
-- [ ] **Use Connection Pooling** - Reuse database connections
-- [ ] **Enable Logging** - Track dashboard access and actions
+**Solution:** 
+1. Create the `que_jobs` table using the schema
+2. Check database connection
+3. Verify table has jobs: `SELECT COUNT(*) FROM que_jobs;`
+
+### Authentication Not Working
+
+**Problem:** Auth function not returning correct value.
+
+**Solution:**
+- Make sure auth function returns `true` or `false`
+- For async auth, declare function as `async`
+- Check browser console for 403 errors
+
+### Slow Dashboard Performance
+
+**Solutions:**
+
+1. Add database indexes:
+```sql
+CREATE INDEX idx_que_jobs_run_at ON que_jobs(run_at);
+CREATE INDEX idx_que_jobs_error_count ON que_jobs(error_count);
+CREATE INDEX idx_que_jobs_queue ON que_jobs(queue);
+CREATE INDEX idx_que_jobs_job_class ON que_jobs(job_class);
+```
+
+2. Increase refresh interval:
+```typescript
+createDashboard(pool, { refreshInterval: 10000 })
+```
+
+3. Reduce max failures shown:
+```typescript
+createDashboard(pool, { maxRecentFailures: 25 })
+```
+
+## Production Deployment
 
 ### Environment Variables
 
+```bash
+# Dashboard
+DASHBOARD_PATH=/admin/queue
+DASHBOARD_TITLE=Production Queue
+DASHBOARD_REFRESH_MS=5000
+DASHBOARD_API_KEY=your-secret-key
+
+# Database
+DB_HOST=postgres
+DB_PORT=5432
+DB_NAME=myapp
+DB_USER=postgres
+DB_PASSWORD=secret
+```
+
+### Secure Configuration
+
 ```typescript
-import { createDashboard } from 'que-ts/dashboard';
+require('dotenv').config();
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
   ssl: process.env.NODE_ENV === 'production',
 });
 
-app.use(process.env.DASHBOARD_PATH || '/admin/queue', 
-  createDashboard(pool, {
-    title: process.env.APP_NAME || 'Queue Dashboard',
-    refreshInterval: parseInt(process.env.DASHBOARD_REFRESH_MS || '5000'),
-    auth: (req) => {
-      const apiKey = req.headers['x-api-key'];
-      return apiKey === process.env.DASHBOARD_API_KEY;
-    },
-  })
-);
+app.use(process.env.DASHBOARD_PATH, createDashboard(pool, {
+  title: process.env.DASHBOARD_TITLE,
+  basePath: process.env.DASHBOARD_PATH,
+  refreshInterval: parseInt(process.env.DASHBOARD_REFRESH_MS),
+  auth: (req) => {
+    return req.headers['x-api-key'] === process.env.DASHBOARD_API_KEY;
+  },
+}));
 ```
 
-### Docker Example
+### Behind a Reverse Proxy
+
+If running behind nginx or similar:
+
+```nginx
+# nginx.conf
+location /admin/queue {
+    proxy_pass http://localhost:3000/admin/queue;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_cache_bypass $http_upgrade;
+}
+```
+
+### Docker Deployment
 
 ```dockerfile
 FROM node:18-alpine
-
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
-
 COPY . .
-
 ENV NODE_ENV=production
-ENV DASHBOARD_PATH=/queue
-ENV DASHBOARD_REFRESH_MS=5000
-
+ENV PORT=3000
 EXPOSE 3000
-
 CMD ["node", "dist/server.js"]
 ```
 
-## Troubleshooting
+```bash
+docker build -t queue-dashboard .
+docker run -p 3000:3000 \
+  -e DB_HOST=postgres \
+  -e DB_NAME=myapp \
+  -e DASHBOARD_API_KEY=secret \
+  queue-dashboard
+```
 
-### Dashboard shows "Failed to load jobs"
+### Security Checklist
 
-**Check:**
-1. Database connection is working
-2. `que_jobs` table exists
-3. User has SELECT permissions on `que_jobs`
+- [ ] Enable authentication
+- [ ] Use HTTPS in production
+- [ ] Restrict network access
+- [ ] Use environment variables for secrets
+- [ ] Enable rate limiting
+- [ ] Use read-only database user for dashboard
+- [ ] Regular security audits
+- [ ] Keep dependencies updated
 
-### Authentication not working
+## Complete Example
 
-**Check:**
-1. Auth function returns `true` or `false` (not undefined)
-2. For async auth, ensure function is declared `async`
-3. Check browser console for 403 errors
+```typescript
+import express from 'express';
+import session from 'express-session';
+import { Pool } from 'pg';
+import { createDashboard } from 'worker-que/dist/dashboard';
+import { Client, Worker } from 'worker-que';
 
-### Slow dashboard performance
+const app = express();
+const dbConfig = {
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT),
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+};
 
-**Solutions:**
-1. Increase `refreshInterval` to reduce polling frequency
-2. Add database indexes:
-   ```sql
-   CREATE INDEX idx_que_jobs_run_at ON que_jobs(run_at);
-   CREATE INDEX idx_que_jobs_error_count ON que_jobs(error_count);
-   CREATE INDEX idx_que_jobs_queue ON que_jobs(queue);
-   CREATE INDEX idx_que_jobs_job_class ON que_jobs(job_class);
-   ```
-3. Reduce `maxRecentFailures` option
-4. Use database connection pooling
+const pool = new Pool(dbConfig);
+const client = new Client(dbConfig);
+const worker = new Worker(dbConfig);
 
-### Dashboard not refreshing
+// Setup session
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+}));
 
-**Check:**
-1. JavaScript is enabled in browser
-2. No console errors in browser dev tools
-3. API endpoints are accessible (check network tab)
-4. CORS is configured if dashboard is on different domain
+// Register job handlers
+worker.register('SendEmail', async (job) => {
+  // Email logic
+});
 
-## Screenshots
+// Mount dashboard with auth
+app.use('/admin/queue', createDashboard(pool, {
+  title: 'Production Queue',
+  basePath: '/admin/queue',
+  refreshInterval: 3000,
+  auth: (req) => req.session?.user?.isAdmin === true,
+}));
 
-### Main Dashboard
-![Dashboard Overview](docs/images/dashboard-overview.png)
+// Start worker
+worker.work();
 
-Shows:
-- Real-time job statistics
-- Ready, scheduled, and failed job counts
-- Visual charts for queue and class distribution
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Dashboard: http://localhost:${PORT}/admin/queue`);
+});
 
-### Jobs List
-![Jobs List](docs/images/jobs-list.png)
-
-Features:
-- Filter by status, queue, and job class
-- Pagination for large job lists
-- Quick actions to retry or delete jobs
-
-### Recent Failures
-![Recent Failures](docs/images/failures.png)
-
-Displays:
-- Jobs that have failed
-- Error messages
-- Retry and delete actions
-
-## Customization
-
-### Custom Styles
-
-The dashboard uses inline styles for portability. To customize:
-
-1. Create your own view template:
-   ```typescript
-   import { getDashboardHTML } from 'que-ts/dashboard/views';
-   
-   // Extend or modify the HTML
-   const customHTML = getDashboardHTML(options)
-     .replace('background: #667eea', 'background: #your-color');
-   ```
-
-2. Or mount your own routes:
-   ```typescript
-   import { DashboardService } from 'que-ts/dashboard';
-   
-   const service = new DashboardService(pool);
-   
-   app.get('/custom-dashboard', (req, res) => {
-     // Your custom HTML using service.getStats()
-   });
-   ```
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await worker.shutdown();
+  await client.close();
+  await pool.end();
+  process.exit(0);
+});
+```
 
 ## Support
 
-- 📖 Full API documentation: [API.md](../API.md)
-- 🐛 Report issues: [GitHub Issues](https://github.com/Duke-Engineering/que-ts/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/Duke-Engineering/que-ts/discussions)
+- 📖 [Main Documentation](./README.md)
+- 🔐 [SSL Configuration](./SSL.md)
+- 🐛 [Issue Tracker](https://github.com/your-username/worker-que/issues)
 
-## License
+---
 
-MIT
+**Need help?** Open an issue or check the examples directory for more code samples.

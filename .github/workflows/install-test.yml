@@ -36,7 +36,7 @@ jobs:
           npm install file:../
           
           # Test the installation
-          node -e "const { Client, Worker } = require('que-ts'); console.log('✅ que-ts imported successfully')"
+          node -e "const { Client, Worker } = require('que-ts'); console.log('✅worker-que imported successfully')"
           
       - name: Test TypeScript types
         run: |
@@ -85,7 +85,7 @@ jobs:
               body: `## 📦 Installation Test Results
               
               ✅ **GitHub Installation**: Working correctly
-              ✅ **Module Import**: que-ts loads successfully  
+              ✅ **Module Import**:worker-que loads successfully  
               ✅ **TypeScript Types**: Available and valid
               ✅ **Build Process**: Automated build completed
               

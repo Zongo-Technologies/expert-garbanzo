@@ -1,7 +1,257 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getLoginHTML = getLoginHTML;
 exports.getDashboardHTML = getDashboardHTML;
-function getDashboardHTML(options) {
+function getLoginHTML(options, error) {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in - ${options.title}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 40px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 440px;
+            padding: 44px;
+        }
+
+        .logo-container {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #0078d4, #106ebe);
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .logo-icon {
+            font-size: 32px;
+            color: white;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f1f1f;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: #605e5c;
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #323130;
+            margin-bottom: 8px;
+        }
+
+        input[type="email"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 14px;
+            border: 1px solid #8a8886;
+            border-radius: 2px;
+            transition: all 0.15s ease;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #0078d4;
+            box-shadow: 0 0 0 1px #0078d4;
+        }
+
+        input:hover {
+            border-color: #323130;
+        }
+
+        .error-message {
+            background: #fde7e9;
+            border-left: 3px solid #a4262c;
+            color: #a4262c;
+            padding: 12px 16px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .error-icon {
+            font-weight: bold;
+        }
+
+        .submit-btn {
+            width: 100%;
+            background: #0078d4;
+            color: white;
+            border: none;
+            padding: 11px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .submit-btn:hover {
+            background: #106ebe;
+        }
+
+        .submit-btn:active {
+            background: #005a9e;
+        }
+
+        .submit-btn:disabled {
+            background: #f3f2f1;
+            color: #a19f9d;
+            cursor: not-allowed;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            margin-bottom: 24px;
+            font-size: 13px;
+            color: #323130;
+        }
+
+        .remember-me input[type="checkbox"] {
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .footer-text {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 12px;
+            color: #605e5c;
+        }
+
+        .security-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: #f3f2f1;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #605e5c;
+            margin-top: 16px;
+        }
+
+        .lock-icon {
+            color: #107c10;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo-container">
+            <div class="logo">
+                <span class="logo-icon">📊</span>
+            </div>
+            <h1>${options.title}</h1>
+            <p class="subtitle">Sign in to continue to dashboard</p>
+        </div>
+
+        ${error ? `
+        <div class="error-message">
+            <span class="error-icon">⚠</span>
+            <span>${error}</span>
+        </div>
+        ` : ''}
+
+        <form method="POST" action="${options.basePath}/login">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    name="email" 
+                    required 
+                    autocomplete="email"
+                    placeholder="Enter your email"
+                    autofocus
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    required 
+                    autocomplete="current-password"
+                    placeholder="Enter your password"
+                >
+            </div>
+
+            <div class="remember-me">
+                <input type="checkbox" id="remember" name="remember" value="yes">
+                <label for="remember" style="margin-bottom: 0; font-weight: 400;">Keep me signed in</label>
+            </div>
+
+            <button type="submit" class="submit-btn">Sign in</button>
+
+            <div class="footer-text">
+                <div class="security-badge">
+                    <span class="lock-icon">🔒</span>
+                    <span>Secure connection</span>
+                </div>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
+  `.trim();
+}
+function getDashboardHTML(options, userEmail) {
     return `
 <!DOCTYPE html>
 <html lang="en">
@@ -17,164 +267,296 @@ function getDashboardHTML(options) {
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f7fa;
-            color: #2c3e50;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+            background: #faf9f8;
+            color: #201f1e;
             line-height: 1.6;
         }
 
+        /* Microsoft Fluent Design Header */
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: #ffffff;
+            border-bottom: 1px solid #edebe9;
+            box-shadow: 0 0.3px 0.9px rgba(0,0,0,0.108), 0 1.6px 3.6px rgba(0,0,0,0.132);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 48px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #0078d4, #106ebe);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
         }
 
         .header h1 {
-            font-size: 2rem;
+            font-size: 16px;
             font-weight: 600;
-            margin-bottom: 0.5rem;
+            color: #201f1e;
         }
 
-        .header p {
-            opacity: 0.9;
-            font-size: 0.95rem;
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 12px 4px 4px;
+            background: #f3f2f1;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #323130;
+        }
+
+        .user-avatar {
+            width: 24px;
+            height: 24px;
+            background: #0078d4;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .logout-btn {
+            background: transparent;
+            border: 1px solid #8a8886;
+            color: #323130;
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: 600;
+        }
+
+        .logout-btn:hover {
+            background: #f3f2f1;
+            border-color: #323130;
+        }
+
+        .logout-btn:active {
+            background: #edebe9;
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 24px;
         }
 
+        /* Fluent Cards */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
         }
 
         .stat-card {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transition: transform 0.2s, box-shadow 0.2s;
+            background: #ffffff;
+            border: 1px solid #edebe9;
+            border-radius: 4px;
+            padding: 20px;
+            box-shadow: 0 0.3px 0.9px rgba(0,0,0,0.108), 0 1.6px 3.6px rgba(0,0,0,0.132);
+            transition: all 0.2s cubic-bezier(0.4, 0.0, 0.23, 1);
+            position: relative;
+            overflow: hidden;
         }
 
         .stat-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            box-shadow: 0 3.2px 7.2px rgba(0,0,0,0.132), 0 0.6px 1.8px rgba(0,0,0,0.108);
         }
 
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: #8a8886;
+        }
+
+        .stat-card.success::before { background: #107c10; }
+        .stat-card.warning::before { background: #faa900; }
+        .stat-card.danger::before { background: #d13438; }
+        .stat-card.info::before { background: #0078d4; }
+
         .stat-label {
-            font-size: 0.875rem;
-            color: #7f8c8d;
+            font-size: 12px;
+            color: #605e5c;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 0.5rem;
+            margin-bottom: 8px;
+            font-weight: 600;
         }
 
         .stat-value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #2c3e50;
+            font-size: 32px;
+            font-weight: 600;
+            color: #323130;
+            line-height: 1.2;
         }
 
-        .stat-card.success .stat-value { color: #27ae60; }
-        .stat-card.warning .stat-value { color: #f39c12; }
-        .stat-card.danger .stat-value { color: #e74c3c; }
-        .stat-card.info .stat-value { color: #3498db; }
+        .stat-card.success .stat-value { color: #107c10; }
+        .stat-card.warning .stat-value { color: #f7630c; }
+        .stat-card.danger .stat-value { color: #d13438; }
+        .stat-card.info .stat-value { color: #0078d4; }
 
         .section {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            background: #ffffff;
+            border: 1px solid #edebe9;
+            border-radius: 4px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 0.3px 0.9px rgba(0,0,0,0.108), 0 1.6px 3.6px rgba(0,0,0,0.132);
         }
 
         .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid #ecf0f1;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #edebe9;
         }
 
         .section-title {
-            font-size: 1.5rem;
+            font-size: 20px;
             font-weight: 600;
-            color: #2c3e50;
+            color: #323130;
         }
 
+        /* Fluent Inputs */
         .filters {
             display: flex;
-            gap: 1rem;
+            gap: 12px;
             flex-wrap: wrap;
-            margin-bottom: 1.5rem;
+            margin-bottom: 20px;
         }
 
         select, input {
-            padding: 0.5rem 1rem;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 0.95rem;
+            padding: 7px 8px;
+            border: 1px solid #8a8886;
+            border-radius: 2px;
+            font-size: 14px;
             background: white;
+            color: #323130;
             cursor: pointer;
-            transition: border-color 0.2s;
+            transition: all 0.15s ease;
+            font-family: 'Segoe UI', sans-serif;
         }
 
-        select:hover, select:focus, input:hover, input:focus {
-            border-color: #667eea;
+        select:hover, input:hover {
+            border-color: #323130;
+        }
+
+        select:focus, input:focus {
             outline: none;
+            border-color: #0078d4;
+            box-shadow: 0 0 0 1px #0078d4;
         }
 
+        /* Fluent Buttons */
         .btn {
-            padding: 0.5rem 1.25rem;
-            border: none;
-            border-radius: 6px;
-            font-size: 0.95rem;
+            padding: 7px 16px;
+            border: 1px solid #8a8886;
+            border-radius: 2px;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
-            font-weight: 500;
+            transition: all 0.1s ease;
+            font-family: 'Segoe UI', sans-serif;
+            background: white;
+            color: #323130;
+        }
+
+        .btn:hover {
+            background: #f3f2f1;
+            border-color: #323130;
+        }
+
+        .btn:active {
+            background: #edebe9;
         }
 
         .btn-primary {
-            background: #667eea;
+            background: #0078d4;
+            border-color: #0078d4;
             color: white;
         }
 
         .btn-primary:hover {
-            background: #5568d3;
+            background: #106ebe;
+            border-color: #106ebe;
+        }
+
+        .btn-primary:active {
+            background: #005a9e;
         }
 
         .btn-danger {
-            background: #e74c3c;
+            background: #d13438;
+            border-color: #d13438;
             color: white;
         }
 
         .btn-danger:hover {
-            background: #c0392b;
+            background: #a4262c;
+            border-color: #a4262c;
         }
 
         .btn-success {
-            background: #27ae60;
+            background: #107c10;
+            border-color: #107c10;
             color: white;
         }
 
         .btn-success:hover {
-            background: #229954;
+            background: #0b6a0b;
+            border-color: #0b6a0b;
         }
 
         .btn-small {
-            padding: 0.375rem 0.75rem;
-            font-size: 0.875rem;
+            padding: 5px 12px;
+            font-size: 13px;
         }
 
+        /* Modern Table */
         .table-container {
             overflow-x: auto;
+            border-radius: 4px;
         }
 
         table {
@@ -183,108 +565,117 @@ function getDashboardHTML(options) {
         }
 
         th {
-            background: #f8f9fa;
-            padding: 1rem;
+            background: #f3f2f1;
+            padding: 12px 16px;
             text-align: left;
             font-weight: 600;
-            color: #495057;
-            border-bottom: 2px solid #dee2e6;
-            font-size: 0.875rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            color: #323130;
+            border-bottom: 1px solid #edebe9;
+            font-size: 13px;
+            text-transform: none;
+            letter-spacing: 0;
         }
 
         td {
-            padding: 1rem;
-            border-bottom: 1px solid #ecf0f1;
+            padding: 12px 16px;
+            border-bottom: 1px solid #edebe9;
+            font-size: 13px;
         }
 
         tr:hover {
-            background: #f8f9fa;
+            background: #faf9f8;
         }
 
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Fluent Badges */
         .badge {
             display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 2px;
+            font-size: 12px;
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            text-transform: capitalize;
         }
 
-        .badge-success { background: #d4edda; color: #155724; }
-        .badge-warning { background: #fff3cd; color: #856404; }
-        .badge-danger { background: #f8d7da; color: #721c24; }
-        .badge-info { background: #d1ecf1; color: #0c5460; }
+        .badge-success { background: #dff6dd; color: #107c10; }
+        .badge-warning { background: #fff4ce; color: #8a5500; }
+        .badge-danger { background: #fde7e9; color: #a4262c; }
+        .badge-info { background: #deecf9; color: #004e8c; }
 
+        /* Charts */
         .chart-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            margin-top: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-top: 20px;
         }
 
         .chart {
-            background: #f8f9fa;
-            padding: 1.5rem;
-            border-radius: 8px;
+            background: #faf9f8;
+            padding: 20px;
+            border-radius: 4px;
+            border: 1px solid #edebe9;
         }
 
         .chart-title {
             font-weight: 600;
-            margin-bottom: 1rem;
-            color: #495057;
+            margin-bottom: 16px;
+            color: #323130;
+            font-size: 14px;
         }
 
         .chart-bar {
             display: flex;
             align-items: center;
-            margin-bottom: 0.75rem;
+            margin-bottom: 12px;
         }
 
         .chart-label {
             min-width: 120px;
-            font-size: 0.875rem;
-            color: #6c757d;
+            font-size: 13px;
+            color: #605e5c;
         }
 
         .chart-bar-bg {
             flex: 1;
-            height: 24px;
-            background: #e9ecef;
-            border-radius: 4px;
+            height: 28px;
+            background: #edebe9;
+            border-radius: 2px;
             overflow: hidden;
             position: relative;
         }
 
         .chart-bar-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, #0078d4, #106ebe);
             transition: width 0.3s ease;
         }
 
         .chart-value {
-            margin-left: 0.75rem;
+            margin-left: 12px;
             font-weight: 600;
-            font-size: 0.875rem;
+            font-size: 13px;
             min-width: 40px;
+            color: #323130;
         }
 
         .loading {
             text-align: center;
-            padding: 3rem;
-            color: #7f8c8d;
+            padding: 48px;
+            color: #605e5c;
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border: 3px solid #edebe9;
+            border-top: 3px solid #0078d4;
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
+            margin: 0 auto 16px;
         }
 
         @keyframes spin {
@@ -293,49 +684,49 @@ function getDashboardHTML(options) {
         }
 
         .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 1rem;
-            border-radius: 8px;
-            border-left: 4px solid #e74c3c;
+            background: #fde7e9;
+            color: #a4262c;
+            padding: 16px;
+            border-radius: 4px;
+            border-left: 3px solid #d13438;
         }
 
         .empty-state {
             text-align: center;
-            padding: 3rem;
-            color: #7f8c8d;
+            padding: 48px;
+            color: #605e5c;
         }
 
         .empty-state-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            opacity: 0.3;
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
         }
 
         .pagination {
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 0.5rem;
-            margin-top: 1.5rem;
+            gap: 12px;
+            margin-top: 24px;
         }
 
         .pagination button {
-            padding: 0.5rem 1rem;
+            padding: 7px 16px;
         }
 
         .pagination span {
-            color: #6c757d;
-            font-size: 0.95rem;
+            color: #605e5c;
+            font-size: 13px;
         }
 
         code {
-            background: #f8f9fa;
-            padding: 0.125rem 0.375rem;
-            border-radius: 3px;
-            font-family: 'Monaco', 'Courier New', monospace;
-            font-size: 0.875rem;
-            color: #e83e8c;
+            background: #f3f2f1;
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            color: #d13438;
         }
 
         .job-args {
@@ -343,8 +734,8 @@ function getDashboardHTML(options) {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-family: 'Monaco', 'Courier New', monospace;
-            font-size: 0.875rem;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
         }
 
         .error-message {
@@ -352,8 +743,8 @@ function getDashboardHTML(options) {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            color: #e74c3c;
-            font-size: 0.875rem;
+            color: #d13438;
+            font-size: 12px;
         }
 
         .refresh-indicator {
@@ -361,8 +752,7 @@ function getDashboardHTML(options) {
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: #27ae60;
-            margin-left: 0.5rem;
+            background: #107c10;
             animation: pulse 2s infinite;
         }
 
@@ -373,14 +763,29 @@ function getDashboardHTML(options) {
 
         .actions {
             display: flex;
-            gap: 0.5rem;
+            gap: 8px;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>${options.title}</h1>
-        <p>Real-time job queue monitoring and management <span class="refresh-indicator"></span></p>
+        <div class="header-content">
+            <div class="header-left">
+                <div class="logo">📊</div>
+                <h1>${options.title}</h1>
+            </div>
+            <div class="header-right">
+                ${userEmail ? `
+                <div class="user-info">
+                    <div class="user-avatar">${userEmail.charAt(0).toUpperCase()}</div>
+                    <span>${userEmail}</span>
+                </div>
+                ` : ''}
+                <form method="POST" action="${options.basePath}/logout" style="display: inline;">
+                    <button type="submit" class="logout-btn">Sign out</button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <div class="container">
@@ -408,6 +813,7 @@ function getDashboardHTML(options) {
         <div class="section">
             <div class="section-header">
                 <h2 class="section-title">Analytics</h2>
+                <span class="refresh-indicator"></span>
             </div>
             <div class="chart-container">
                 <div class="chart">
@@ -645,9 +1051,9 @@ function getDashboardHTML(options) {
                     </table>
                 </div>
                 <div class="pagination">
-                    <button class="btn btn-primary" onclick="previousPage()" \${currentPage === 0 ? 'disabled' : ''}>Previous</button>
+                    <button class="btn" onclick="previousPage()" \${currentPage === 0 ? 'disabled' : ''}>Previous</button>
                     <span>Page \${currentPage + 1} of \${Math.ceil(total / pageSize)}</span>
-                    <button class="btn btn-primary" onclick="nextPage()" \${(currentPage + 1) * pageSize >= total ? 'disabled' : ''}>Next</button>
+                    <button class="btn" onclick="nextPage()" \${(currentPage + 1) * pageSize >= total ? 'disabled' : ''}>Next</button>
                 </div>
             \`;
 

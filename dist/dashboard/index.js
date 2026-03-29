@@ -1,8 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DashboardService = void 0;
 exports.createDashboard = createDashboard;
 const express_1 = require("express");
+const express_2 = __importDefault(require("express"));
+const express_session_1 = __importDefault(require("express-session"));
 const service_1 = require("./service");
 Object.defineProperty(exports, "DashboardService", { enumerable: true, get: function () { return service_1.DashboardService; } });
 const views_1 = require("./views");
@@ -10,32 +15,59 @@ const views_1 = require("./views");
  * Creates an Express router with the Que dashboard
  *
  * @example
+ * Basic setup with built-in auth:
  * ```typescript
  * import express from 'express';
  * import { Pool } from 'pg';
- * import { createDashboard } from 'que-ts/dashboard';
+ * import { createDashboard } from 'worker-que/dist/dashboard';
  *
  * const app = express();
  * const pool = new Pool({ ... });
  *
  * app.use('/admin/queue', createDashboard(pool, {
  *   title: 'My App Queue',
- *   auth: (req, res, next) => {
- *     // Add your authentication logic
- *     return req.isAuthenticated();
+ *   auth: {
+ *     email: 'admin@example.com',
+ *     password: 'your-secure-password'
  *   }
+ * }));
+ * ```
+ *
+ * @example
+ * Custom auth:
+ * ```typescript
+ * app.use('/admin/queue', createDashboard(pool, {
+ *   customAuth: (req) => req.isAuthenticated()
  * }));
  * ```
  */
 function createDashboard(pool, options = {}) {
     const router = (0, express_1.Router)();
     const service = new service_1.DashboardService(pool, options);
-    const authMiddleware = options.auth;
-    // Authentication middleware wrapper
+    const dashboardOptions = service.getOptions();
+    const useBuiltInAuth = !!options.auth?.email && !!options.auth?.password;
+    const customAuthMiddleware = options.customAuth;
+    // Setup session middleware if using built-in auth
+    if (useBuiltInAuth) {
+        router.use((0, express_session_1.default)({
+            secret: options.auth?.password + '-session-secret',
+            resave: false,
+            saveUninitialized: false,
+            cookie: {
+                secure: process.env.NODE_ENV === 'production',
+                httpOnly: true,
+                maxAge: 24 * 60 * 60 * 1000, // 24 hours
+            }
+        }));
+        // Parse form data for login
+        router.use(express_2.default.urlencoded({ extended: true }));
+    }
+    // Authentication middleware
     const requireAuth = async (req, res, next) => {
-        if (authMiddleware) {
+        // Custom auth takes precedence
+        if (customAuthMiddleware) {
             try {
-                const allowed = await authMiddleware(req, res, next);
+                const allowed = await customAuthMiddleware(req, res, next);
                 if (!allowed) {
                     res.status(403).json({ error: 'Access denied' });
                     return;
@@ -45,15 +77,73 @@ function createDashboard(pool, options = {}) {
                 res.status(500).json({ error: 'Authentication error' });
                 return;
             }
+            next();
+            return;
         }
+        // Built-in auth
+        if (useBuiltInAuth) {
+            if (req.session?.user?.authenticated) {
+                next();
+                return;
+            }
+            // Redirect to login page
+            if (req.accepts('html')) {
+                const loginHtml = (0, views_1.getLoginHTML)(dashboardOptions);
+                res.type('html').send(loginHtml);
+                return;
+            }
+            res.status(401).json({ error: 'Authentication required' });
+            return;
+        }
+        // No auth configured
         next();
     };
-    // Apply auth to all routes
+    // Login page (only for built-in auth)
+    if (useBuiltInAuth) {
+        router.get('/login', (req, res) => {
+            if (req.session?.user?.authenticated) {
+                res.redirect(dashboardOptions.basePath || '/');
+                return;
+            }
+            const loginHtml = (0, views_1.getLoginHTML)(dashboardOptions);
+            res.type('html').send(loginHtml);
+        });
+        // Login handler
+        router.post('/login', (req, res) => {
+            const { email, password, remember } = req.body;
+            if (email === options.auth?.email && password === options.auth?.password) {
+                req.session.user = {
+                    email,
+                    authenticated: true,
+                };
+                // Extend session if remember me is checked
+                if (remember === 'yes' && req.session.cookie) {
+                    req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+                }
+                res.redirect(dashboardOptions.basePath || '/');
+            }
+            else {
+                const loginHtml = (0, views_1.getLoginHTML)(dashboardOptions, 'Invalid email or password');
+                res.type('html').send(loginHtml);
+            }
+        });
+        // Logout handler
+        router.post('/logout', (req, res) => {
+            req.session.destroy((err) => {
+                if (err) {
+                    console.error('Session destruction error:', err);
+                }
+                res.redirect(dashboardOptions.basePath + '/login');
+            });
+        });
+    }
+    // Apply auth to all API routes and dashboard
     router.use(requireAuth);
     // Main dashboard page
     router.get('/', async (req, res) => {
         try {
-            const html = (0, views_1.getDashboardHTML)(service.getOptions());
+            const userEmail = req.session?.user?.email;
+            const html = (0, views_1.getDashboardHTML)(dashboardOptions, userEmail);
             res.type('html').send(html);
         }
         catch (error) {

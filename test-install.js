@@ -3,13 +3,13 @@
 // Simple installation test script
 // Run with: node test-install.js
 
-console.log('Testing que-ts installation...');
+console.log('Testing worker-que installation...');
 
 try {
   // Test basic import
   const { Client, Worker, JobInstance } = require('./dist/index.js');
   
-  console.log('✅ Successfully imported que-ts modules');
+  console.log('✅ Successfully imported worker-que modules');
   console.log('✅ Client class available:', typeof Client === 'function');
   console.log('✅ Worker class available:', typeof Worker === 'function');
   console.log('✅ JobInstance class available:', typeof JobInstance === 'function');
@@ -19,7 +19,7 @@ try {
   const typeDefsExist = fs.existsSync('./dist/index.d.ts');
   console.log('✅ TypeScript definitions available:', typeDefsExist);
   
-  console.log('\n🎉 que-ts installation successful!');
+  console.log('\n🎉worker-que installation successful!');
   console.log('\nNext steps:');
   console.log('1. Set up PostgreSQL database');
   console.log('2. Run the schema from migrations/schema.sql');

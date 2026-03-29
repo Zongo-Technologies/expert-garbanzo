@@ -31,7 +31,7 @@ export interface Job {
     priority: number;
     runAt: Date;
     jobClass: string;
-    args: any[];
+    args: unknown[];
     errorCount: number;
     lastError?: string;
 }
@@ -40,6 +40,16 @@ export interface DashboardOptions {
     basePath?: string;
     refreshInterval?: number;
     maxRecentFailures?: number;
+    auth?: {
+        email: string;
+        password: string;
+    };
+}
+export interface DashboardInternalOptions {
+    title: string;
+    basePath: string;
+    refreshInterval: number;
+    maxRecentFailures: number;
 }
 export declare class DashboardService {
     private pool;
@@ -61,6 +71,6 @@ export declare class DashboardService {
     retryJob(jobId: number): Promise<boolean>;
     getQueues(): Promise<string[]>;
     getJobClasses(): Promise<string[]>;
-    getOptions(): Required<DashboardOptions>;
+    getOptions(): DashboardInternalOptions;
 }
 //# sourceMappingURL=service.d.ts.map

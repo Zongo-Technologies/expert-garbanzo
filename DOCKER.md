@@ -1,6 +1,6 @@
 # Docker Development Setup
 
-This document explains how to use Docker for development and testing with que-ts.
+This document explains how to use Docker for development and testing withworker-que.
 
 ## Quick Start
 

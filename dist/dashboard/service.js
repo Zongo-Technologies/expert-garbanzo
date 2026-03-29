@@ -90,8 +90,8 @@ class DashboardService {
     }
     async getJobs(options = {}) {
         const { queue, jobClass, status = 'all', limit = 50, offset = 0, } = options;
-        let whereConditions = [];
-        let params = [];
+        const whereConditions = [];
+        const params = [];
         let paramIndex = 1;
         if (queue !== undefined) {
             whereConditions.push(`queue = $${paramIndex++}`);

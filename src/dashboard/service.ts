@@ -1,5 +1,4 @@
 import { Pool } from 'pg';
-import { Request, Response, NextFunction } from 'express';
 
 export interface QueueStats {
   total: number;
@@ -28,7 +27,7 @@ export interface Job {
   priority: number;
   runAt: Date;
   jobClass: string;
-  args: any[];
+  args: unknown[];
   errorCount: number;
   lastError?: string;
 }
@@ -38,11 +37,22 @@ export interface DashboardOptions {
   basePath?: string;
   refreshInterval?: number;
   maxRecentFailures?: number;
+  auth?: {
+    email: string;
+    password: string;
+  };
+}
+
+export interface DashboardInternalOptions {
+  title: string;
+  basePath: string;
+  refreshInterval: number;
+  maxRecentFailures: number;
 }
 
 export class DashboardService {
   private pool: Pool;
-  private options: Required<DashboardOptions>;
+  private options: DashboardInternalOptions;
 
   constructor(pool: Pool, options: DashboardOptions = {}) {
     this.pool = pool;
@@ -176,8 +186,8 @@ export class DashboardService {
       offset = 0,
     } = options;
 
-    let whereConditions: string[] = [];
-    let params: any[] = [];
+    const whereConditions: string[] = [];
+    const params: unknown[] = [];
     let paramIndex = 1;
 
     if (queue !== undefined) {
@@ -302,7 +312,7 @@ export class DashboardService {
     return result.rows.map(row => row.job_class);
   }
 
-  getOptions(): Required<DashboardOptions> {
+  getOptions(): DashboardInternalOptions {
     return this.options;
   }
 }

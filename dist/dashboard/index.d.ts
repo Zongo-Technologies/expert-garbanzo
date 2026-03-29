@@ -3,29 +3,46 @@ import { Pool } from 'pg';
 import { DashboardService, DashboardOptions } from './service';
 export interface DashboardMiddlewareOptions extends DashboardOptions {
     /**
-     * Optional authentication middleware
-     * Return true to allow access, false to deny
+     * Optional custom authentication middleware
+     * If provided, built-in auth is disabled
      */
-    auth?: (req: Request, res: Response, next: NextFunction) => boolean | Promise<boolean>;
+    customAuth?: (req: Request, res: Response, next: NextFunction) => boolean | Promise<boolean>;
+}
+declare module 'express-session' {
+    interface SessionData {
+        user?: {
+            email: string;
+            authenticated: boolean;
+        };
+    }
 }
 /**
  * Creates an Express router with the Que dashboard
  *
  * @example
+ * Basic setup with built-in auth:
  * ```typescript
  * import express from 'express';
  * import { Pool } from 'pg';
- * import { createDashboard } from 'que-ts/dashboard';
+ * import { createDashboard } from 'worker-que/dist/dashboard';
  *
  * const app = express();
  * const pool = new Pool({ ... });
  *
  * app.use('/admin/queue', createDashboard(pool, {
  *   title: 'My App Queue',
- *   auth: (req, res, next) => {
- *     // Add your authentication logic
- *     return req.isAuthenticated();
+ *   auth: {
+ *     email: 'admin@example.com',
+ *     password: 'your-secure-password'
  *   }
+ * }));
+ * ```
+ *
+ * @example
+ * Custom auth:
+ * ```typescript
+ * app.use('/admin/queue', createDashboard(pool, {
+ *   customAuth: (req) => req.isAuthenticated()
  * }));
  * ```
  */

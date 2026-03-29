@@ -22,29 +22,43 @@ const pool = new Pool(dbConfig);
 // Create a client for enqueueing jobs
 const client = new Client(dbConfig);
 
-// Mount the dashboard at /admin/queue
-// With authentication example
+// Example 1: Dashboard with built-in email/password authentication
 app.use('/admin/queue', createDashboard(pool, {
   title: 'My Application Queue Dashboard',
   basePath: '/admin/queue',
   refreshInterval: 3000, // Refresh every 3 seconds
-  // Optional: Add authentication
-  auth: async (req, res, next) => {
-    // Example: Check for API key in header
-    const apiKey = req.headers['x-api-key'];
-    if (apiKey === 'your-secret-key') {
-      return true;
-    }
-    
-    // Example: Check for session authentication
-    // if (req.session?.user?.isAdmin) {
-    //   return true;
-    // }
-    
-    // For demo purposes, allow all (REMOVE IN PRODUCTION!)
-    return true;
+  // Built-in authentication with email and password
+  auth: {
+    email: 'admin@example.com',
+    password: 'SecurePassword123!'
   }
 }));
+
+// Example 2: Dashboard with custom authentication
+// app.use('/admin/queue', createDashboard(pool, {
+//   title: 'My Application Queue Dashboard',
+//   basePath: '/admin/queue',
+//   customAuth: async (req, res, next) => {
+//     // Example: Check for API key in header
+//     const apiKey = req.headers['x-api-key'];
+//     if (apiKey === 'your-secret-key') {
+//       return true;
+//     }
+//     
+//     // Example: Check for session authentication
+//     // if (req.session?.user?.isAdmin) {
+//     //   return true;
+//     // }
+//     
+//     return false;
+//   }
+// }));
+
+// Example 3: Dashboard without authentication (NOT RECOMMENDED FOR PRODUCTION!)
+// app.use('/admin/queue', createDashboard(pool, {
+//   title: 'My Application Queue Dashboard',
+//   basePath: '/admin/queue'
+// }));
 
 // Example API endpoint to enqueue jobs
 app.post('/api/enqueue', express.json(), async (req, res) => {
@@ -143,7 +157,9 @@ worker.register('SendReminder', async (job) => {
 // Start the server
 app.listen(port, async () => {
   console.log(`\n🚀 Server running on http://localhost:${port}`);
-  console.log(`📊 Dashboard available at http://localhost:${port}/admin/queue\n`);
+  console.log(`📊 Dashboard available at http://localhost:${port}/admin/queue`);
+  console.log(`   Login: admin@example.com`);
+  console.log(`   Password: SecurePassword123!\n`);
   
   // Enqueue some demo jobs
   await enqueueDemoJobs();

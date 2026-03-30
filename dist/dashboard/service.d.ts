@@ -69,6 +69,7 @@ export declare class DashboardService {
     getJob(jobId: number): Promise<Job | null>;
     deleteJob(jobId: number): Promise<boolean>;
     retryJob(jobId: number): Promise<boolean>;
+    updateJobArgs(jobId: number, args: unknown[]): Promise<boolean>;
     getQueues(): Promise<string[]>;
     getJobClasses(): Promise<string[]>;
     getOptions(): DashboardInternalOptions;

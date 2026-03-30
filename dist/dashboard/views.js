@@ -736,6 +736,141 @@ function getDashboardHTML(options, userEmail) {
             white-space: nowrap;
             font-family: 'Consolas', 'Monaco', monospace;
             font-size: 12px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 2px;
+            transition: background 0.1s ease;
+        }
+
+        .job-args:hover {
+            background: #deecf9;
+            color: #004e8c;
+        }
+
+        /* Args Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: #ffffff;
+            border-radius: 4px;
+            box-shadow: 0 25.6px 57.6px rgba(0,0,0,0.22), 0 4.8px 14.4px rgba(0,0,0,0.18);
+            width: 90%;
+            max-width: 640px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            animation: modalIn 0.15s ease;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid #edebe9;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #323130;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #605e5c;
+            padding: 4px 8px;
+            border-radius: 2px;
+        }
+
+        .modal-close:hover {
+            background: #f3f2f1;
+            color: #201f1e;
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 16px 24px;
+            border-top: 1px solid #edebe9;
+        }
+
+        .args-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.5;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .args-editor {
+            width: 100%;
+            min-height: 200px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 4px;
+            border: 2px solid #0078d4;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            resize: vertical;
+        }
+
+        .args-editor:focus {
+            outline: none;
+            border-color: #106ebe;
+        }
+
+        .args-error {
+            color: #d13438;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .copy-feedback {
+            color: #107c10;
+            font-size: 12px;
+            margin-left: 8px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .copy-feedback.show {
+            opacity: 1;
         }
 
         .error-message {
@@ -871,10 +1006,38 @@ function getDashboardHTML(options, userEmail) {
         </div>
     </div>
 
+    <!-- Args Modal -->
+    <div class="modal-overlay" id="args-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="args-modal-title">Job Arguments</span>
+                <button class="modal-close" onclick="closeArgsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="args-view-mode">
+                    <pre class="args-viewer" id="args-content"></pre>
+                </div>
+                <div id="args-edit-mode" style="display:none">
+                    <textarea class="args-editor" id="args-editor"></textarea>
+                    <div class="args-error" id="args-error"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="copy-feedback" id="copy-feedback">Copied!</span>
+                <button class="btn" id="btn-copy" onclick="copyArgs()">Copy</button>
+                <button class="btn" id="btn-edit" onclick="enterEditMode()">Edit</button>
+                <button class="btn btn-primary" id="btn-save" style="display:none" onclick="saveArgs()">Save</button>
+                <button class="btn" id="btn-cancel-edit" style="display:none" onclick="cancelEdit()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const REFRESH_INTERVAL = ${options.refreshInterval};
         let currentPage = 0;
         const pageSize = 50;
+        let currentModalJobId = null;
+        let currentModalArgs = null;
 
         // Load initial data
         loadStats();
@@ -1035,7 +1198,7 @@ function getDashboardHTML(options, userEmail) {
                                         <td><span class="badge badge-\${statusBadge}">\${status}</span></td>
                                         <td>\${formatDate(runAt)}</td>
                                         <td>\${job.errorCount > 0 ? '<span class="badge badge-danger">' + job.errorCount + '</span>' : '-'}</td>
-                                        <td class="job-args">\${escapeHtml(JSON.stringify(job.args))}</td>
+                                        <td class="job-args" data-job-id="\${job.id}" data-args="\${escapeAttr(JSON.stringify(job.args))}" onclick="openArgsFromEl(this)" title="Click to view/edit">\${escapeHtml(JSON.stringify(job.args))}</td>
                                         <td>
                                             <div class="actions">
                                                 \${job.errorCount > 0 ? 
@@ -1184,6 +1347,115 @@ function getDashboardHTML(options, userEmail) {
             div.textContent = text;
             return div.innerHTML;
         }
+
+        function escapeAttr(text) {
+            return text.replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function openArgsFromEl(el) {
+            var jobId = parseInt(el.getAttribute('data-job-id'));
+            var args = JSON.parse(el.getAttribute('data-args'));
+            openArgsModal(jobId, args);
+        }
+
+        function openArgsModal(jobId, args) {
+            currentModalJobId = jobId;
+            currentModalArgs = args;
+            document.getElementById('args-modal-title').textContent = 'Job #' + jobId + ' Arguments';
+            document.getElementById('args-content').textContent = JSON.stringify(args, null, 2);
+            document.getElementById('args-view-mode').style.display = '';
+            document.getElementById('args-edit-mode').style.display = 'none';
+            document.getElementById('btn-copy').style.display = '';
+            document.getElementById('btn-edit').style.display = '';
+            document.getElementById('btn-save').style.display = 'none';
+            document.getElementById('btn-cancel-edit').style.display = 'none';
+            document.getElementById('args-error').textContent = '';
+            document.getElementById('args-modal').classList.add('active');
+        }
+
+        function closeArgsModal() {
+            document.getElementById('args-modal').classList.remove('active');
+            currentModalJobId = null;
+            currentModalArgs = null;
+        }
+
+        function copyArgs() {
+            const text = JSON.stringify(currentModalArgs, null, 2);
+            navigator.clipboard.writeText(text).then(function() {
+                var fb = document.getElementById('copy-feedback');
+                fb.classList.add('show');
+                setTimeout(function() { fb.classList.remove('show'); }, 1500);
+            });
+        }
+
+        function enterEditMode() {
+            document.getElementById('args-view-mode').style.display = 'none';
+            document.getElementById('args-edit-mode').style.display = '';
+            document.getElementById('args-editor').value = JSON.stringify(currentModalArgs, null, 2);
+            document.getElementById('btn-copy').style.display = 'none';
+            document.getElementById('btn-edit').style.display = 'none';
+            document.getElementById('btn-save').style.display = '';
+            document.getElementById('btn-cancel-edit').style.display = '';
+            document.getElementById('args-error').textContent = '';
+            document.getElementById('args-editor').focus();
+        }
+
+        function cancelEdit() {
+            document.getElementById('args-view-mode').style.display = '';
+            document.getElementById('args-edit-mode').style.display = 'none';
+            document.getElementById('btn-copy').style.display = '';
+            document.getElementById('btn-edit').style.display = '';
+            document.getElementById('btn-save').style.display = 'none';
+            document.getElementById('btn-cancel-edit').style.display = 'none';
+            document.getElementById('args-error').textContent = '';
+        }
+
+        async function saveArgs() {
+            var raw = document.getElementById('args-editor').value;
+            var parsed;
+            try {
+                parsed = JSON.parse(raw);
+            } catch (e) {
+                document.getElementById('args-error').textContent = 'Invalid JSON: ' + e.message;
+                return;
+            }
+
+            if (!Array.isArray(parsed)) {
+                document.getElementById('args-error').textContent = 'Arguments must be a JSON array.';
+                return;
+            }
+
+            try {
+                var response = await fetch(\`${options.basePath}/api/jobs/\${currentModalJobId}/args\`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ args: parsed })
+                });
+
+                if (response.ok) {
+                    currentModalArgs = parsed;
+                    document.getElementById('args-content').textContent = JSON.stringify(parsed, null, 2);
+                    cancelEdit();
+                    loadJobs();
+                    loadStats();
+                } else {
+                    var data = await response.json();
+                    document.getElementById('args-error').textContent = data.error || 'Failed to update arguments.';
+                }
+            } catch (error) {
+                document.getElementById('args-error').textContent = 'Network error. Please try again.';
+            }
+        }
+
+        // Close modal on overlay click
+        document.getElementById('args-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeArgsModal();
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeArgsModal();
+        });
     </script>
 </body>
 </html>

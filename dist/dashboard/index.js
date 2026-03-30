@@ -195,6 +195,27 @@ function createDashboard(pool, options = {}) {
             res.status(500).json({ error: 'Failed to fetch job' });
         }
     });
+    // API: Update job arguments
+    router.put('/api/jobs/:id/args', express_2.default.json(), async (req, res) => {
+        try {
+            const jobId = parseInt(req.params.id);
+            const { args } = req.body;
+            if (!Array.isArray(args)) {
+                res.status(400).json({ error: 'args must be an array' });
+                return;
+            }
+            const updated = await service.updateJobArgs(jobId, args);
+            if (!updated) {
+                res.status(404).json({ error: 'Job not found' });
+                return;
+            }
+            res.json({ success: true, message: 'Job arguments updated' });
+        }
+        catch (error) {
+            console.error('Error updating job args:', error);
+            res.status(500).json({ error: 'Failed to update job arguments' });
+        }
+    });
     // API: Delete a job
     router.delete('/api/jobs/:id', async (req, res) => {
         try {

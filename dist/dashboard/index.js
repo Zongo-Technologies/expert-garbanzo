@@ -182,7 +182,8 @@ function createDashboard(pool, options = {}) {
     // API: Get single job details
     router.get('/api/jobs/:id', async (req, res) => {
         try {
-            const jobId = parseInt(req.params.id);
+            const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+            const jobId = parseInt(idParam);
             const job = await service.getJob(jobId);
             if (!job) {
                 res.status(404).json({ error: 'Job not found' });
@@ -198,7 +199,8 @@ function createDashboard(pool, options = {}) {
     // API: Update job arguments
     router.put('/api/jobs/:id/args', express_2.default.json(), async (req, res) => {
         try {
-            const jobId = parseInt(req.params.id);
+            const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+            const jobId = parseInt(idParam);
             const { args } = req.body;
             if (!Array.isArray(args)) {
                 res.status(400).json({ error: 'args must be an array' });
@@ -219,7 +221,8 @@ function createDashboard(pool, options = {}) {
     // API: Delete a job
     router.delete('/api/jobs/:id', async (req, res) => {
         try {
-            const jobId = parseInt(req.params.id);
+            const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+            const jobId = parseInt(idParam);
             const deleted = await service.deleteJob(jobId);
             if (!deleted) {
                 res.status(404).json({ error: 'Job not found' });
@@ -235,7 +238,8 @@ function createDashboard(pool, options = {}) {
     // API: Retry a failed job
     router.post('/api/jobs/:id/retry', async (req, res) => {
         try {
-            const jobId = parseInt(req.params.id);
+            const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+            const jobId = parseInt(idParam);
             const retried = await service.retryJob(jobId);
             if (!retried) {
                 res.status(404).json({ error: 'Job not found' });

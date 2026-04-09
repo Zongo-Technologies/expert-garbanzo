@@ -218,7 +218,8 @@ export function createDashboard(
   // API: Get single job details
   router.get('/api/jobs/:id', async (req: Request, res: Response): Promise<void> => {
     try {
-      const jobId = parseInt(req.params.id);
+      const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const jobId = parseInt(idParam);
       const job = await service.getJob(jobId);
 
       if (!job) {
@@ -236,7 +237,8 @@ export function createDashboard(
   // API: Update job arguments
   router.put('/api/jobs/:id/args', express.json(), async (req: Request, res: Response): Promise<void> => {
     try {
-      const jobId = parseInt(req.params.id);
+      const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const jobId = parseInt(idParam);
       const { args } = req.body;
 
       if (!Array.isArray(args)) {
@@ -261,7 +263,8 @@ export function createDashboard(
   // API: Delete a job
   router.delete('/api/jobs/:id', async (req: Request, res: Response): Promise<void> => {
     try {
-      const jobId = parseInt(req.params.id);
+      const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const jobId = parseInt(idParam);
       const deleted = await service.deleteJob(jobId);
 
       if (!deleted) {
@@ -279,7 +282,8 @@ export function createDashboard(
   // API: Retry a failed job
   router.post('/api/jobs/:id/retry', async (req: Request, res: Response): Promise<void> => {
     try {
-      const jobId = parseInt(req.params.id);
+      const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const jobId = parseInt(idParam);
       const retried = await service.retryJob(jobId);
 
       if (!retried) {

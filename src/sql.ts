@@ -11,7 +11,7 @@ export const SQL_QUERIES = {
       FROM (
         SELECT j
         FROM que_jobs AS j
-        WHERE queue = $1 AND run_at <= now() AND error_count < 5
+        WHERE queue = $1 AND run_at <= now() AND error_count < $2
         ORDER BY priority, run_at, job_id
         LIMIT 1
       ) AS t1
@@ -21,7 +21,7 @@ export const SQL_QUERIES = {
           SELECT (
             SELECT j
             FROM que_jobs AS j
-            WHERE queue = $1 AND run_at <= now() AND error_count < 5
+            WHERE queue = $1 AND run_at <= now() AND error_count < $2
             AND (priority, run_at, job_id) > (jobs.priority, jobs.run_at, jobs.job_id)
             ORDER BY priority, run_at, job_id
             LIMIT 1
@@ -47,7 +47,7 @@ export const SQL_QUERIES = {
     UPDATE que_jobs
     SET error_count = error_count + 1,
         last_error = $2,
-        run_at = now() + interval '%d seconds'
+        run_at = now() + (interval '1 second' * $3)
     WHERE job_id = $1
   `,
 

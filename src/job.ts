@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { PoolClient } from 'pg';
 import { Job, JobRow } from './types';
 import { SQL_QUERIES } from './sql';
 import { parseJobArgs, calculateRetryDelay } from './utils';
@@ -13,9 +13,9 @@ export class JobInstance implements Job {
   public readonly errorCount: number;
   public readonly lastError?: string;
 
-  private pool: Pool;
+  private client: PoolClient;
 
-  constructor(row: JobRow, pool: Pool) {
+  constructor(row: JobRow, client: PoolClient) {
     this.id = parseInt(row.job_id, 10);
     this.queue = row.queue;
     this.priority = row.priority;
@@ -24,11 +24,11 @@ export class JobInstance implements Job {
     this.args = parseJobArgs(row.args);
     this.errorCount = row.error_count;
     this.lastError = row.last_error || undefined;
-    this.pool = pool;
+    this.client = client;
   }
 
   async delete(): Promise<void> {
-    await this.pool.query(SQL_QUERIES.DELETE_JOB, [this.id]);
+    await this.client.query(SQL_QUERIES.DELETE_JOB, [this.id]);
     await this.unlock();
   }
 
@@ -38,13 +38,15 @@ export class JobInstance implements Job {
 
   async error(errorMessage: string): Promise<void> {
     const retryDelay = calculateRetryDelay(this.errorCount + 1);
-    const updateQuery = SQL_QUERIES.UPDATE_JOB_ERROR.replace('%d', retryDelay.toString());
-    
-    await this.pool.query(updateQuery, [this.id, errorMessage]);
+    await this.client.query(SQL_QUERIES.UPDATE_JOB_ERROR, [this.id, errorMessage, retryDelay]);
     await this.unlock();
   }
 
   private async unlock(): Promise<void> {
-    await this.pool.query(SQL_QUERIES.UNLOCK_JOB, [this.id]);
+    try {
+      await this.client.query(SQL_QUERIES.UNLOCK_JOB, [this.id]);
+    } finally {
+      this.client.release();
+    }
   }
 }

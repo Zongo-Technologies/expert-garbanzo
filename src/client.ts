@@ -17,8 +17,8 @@ export class Client {
       password: config.password,
       ssl: config.ssl,
       max: config.maxConnections || 10,
-      idleTimeoutMillis: 5000, // Close idle connections after 5 seconds
-      connectionTimeoutMillis: 5000, // Timeout connection attempts after 5 seconds
+      idleTimeoutMillis: 5000,
+      connectionTimeoutMillis: 5000,
     });
   }
 
@@ -31,20 +31,28 @@ export class Client {
 
     const argsJson = formatJobArgs(args);
 
-    const result = await this.pool.query(SQL_QUERIES.ENQUEUE_JOB, [
-      jobClass,
-      argsJson,
-      priority,
-      runAt,
-      queue,
-    ]);
+    const client = await this.pool.connect();
+    try {
+      const result = await client.query(SQL_QUERIES.ENQUEUE_JOB, [
+        jobClass,
+        argsJson,
+        priority,
+        runAt,
+        queue,
+      ]);
 
-    const row = result.rows[0] as JobRow;
-    return new JobInstance(row, this.pool);
+      const row = result.rows[0] as JobRow;
+      // Notify workers that a new job is available
+      await client.query(`SELECT pg_notify('que_jobs_' || $1, '')`, [queue]);
+      // Enqueued jobs don't hold advisory locks, so release the connection
+      return new JobInstance(row, client);
+    } finally {
+      client.release();
+    }
   }
 
   async enqueueInTx(
-    client: PoolClient,
+    txClient: PoolClient,
     jobClass: string,
     args: JSONArray = [],
     options: EnqueueOptions = {},
@@ -53,7 +61,7 @@ export class Client {
 
     const argsJson = formatJobArgs(args);
 
-    const result = await client.query(SQL_QUERIES.ENQUEUE_JOB, [
+    const result = await txClient.query(SQL_QUERIES.ENQUEUE_JOB, [
       jobClass,
       argsJson,
       priority,
@@ -62,23 +70,57 @@ export class Client {
     ]);
 
     const row = result.rows[0] as JobRow;
-    return new JobInstance(row, this.pool);
+    // Notify workers — will fire when the transaction commits
+    await txClient.query(`SELECT pg_notify('que_jobs_' || $1, '')`, [queue]);
+    // Transaction client is managed by the caller, not by JobInstance
+    return new JobInstance(row, txClient);
   }
 
-  async lockJob(queue: string = ""): Promise<Job | null> {
-    const result = await this.pool.query(SQL_QUERIES.LOCK_JOB, [queue]);
+  async lockJob(queue: string = "", maxAttempts: number = 5): Promise<Job | null> {
+    const client = await this.pool.connect();
 
-    if (result.rows.length === 0) {
-      return null;
+    try {
+      const result = await client.query(SQL_QUERIES.LOCK_JOB, [queue, maxAttempts]);
+
+      if (result.rows.length === 0) {
+        client.release();
+        return null;
+      }
+
+      const row = result.rows[0] as JobRow;
+      // Pass the dedicated client — it holds the advisory lock.
+      // JobInstance.unlock() will release it back to the pool.
+      return new JobInstance(row, client);
+    } catch (err) {
+      client.release();
+      throw err;
     }
+  }
 
-    const row = result.rows[0] as JobRow;
-    return new JobInstance(row, this.pool);
+  /**
+   * Send a NOTIFY on the que_jobs channel to wake up listening workers.
+   */
+  async notify(queue: string = ""): Promise<void> {
+    await this.pool.query(`SELECT pg_notify('que_jobs_' || $1, '')`, [queue]);
+  }
+
+  /**
+   * Delete jobs that have exceeded the maximum number of attempts.
+   * Returns the number of removed jobs.
+   */
+  async cleanupDeadJobs(maxAttempts: number = 5): Promise<number> {
+    const result = await this.pool.query(
+      `DELETE FROM que_jobs WHERE error_count >= $1 RETURNING job_id`,
+      [maxAttempts],
+    );
+    return result.rowCount ?? 0;
+  }
+
+  getPool(): Pool {
+    return this.pool;
   }
 
   async close(): Promise<void> {
     await this.pool.end();
-    // Small delay to ensure all connections are fully closed
-    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 }

@@ -1,3 +1,4 @@
+import { PoolClient } from 'pg';
 import { Client } from './client';
 import { Job, WorkFunction, WorkMap, WorkerOptions, ClientConfig } from './types';
 
@@ -6,15 +7,20 @@ export class Worker {
   private workMap: WorkMap = {};
   private queue: string;
   private interval: number;
+  private concurrency: number;
+  private maxAttempts: number;
   private running: boolean = false;
   private shutdownPromise: Promise<void> | null = null;
-  private timeoutId: NodeJS.Timeout | null = null;
-  private timeoutResolve: (() => void) | null = null;
+  private activeWorkers: number = 0;
+  private wakeResolvers: Set<() => void> = new Set();
+  private listenClient: PoolClient | null = null;
 
   constructor(clientConfig: ClientConfig = {}, options: WorkerOptions = {}) {
     this.client = new Client(clientConfig);
     this.queue = options.queue || '';
     this.interval = options.interval || 60 * 1000;
+    this.concurrency = options.concurrency || 3;
+    this.maxAttempts = options.maxAttempts || 5;
   }
 
   register(jobClass: string, workFunc: WorkFunction): void {
@@ -27,12 +33,16 @@ export class Worker {
     }
 
     this.running = true;
-    this.shutdownPromise = this.workLoop();
+
+    await this.startListening();
+
+    const loops = Array.from({ length: this.concurrency }, () => this.workLoop());
+    this.shutdownPromise = Promise.all(loops).then(() => { });
     return this.shutdownPromise;
   }
 
   async workOne(): Promise<boolean> {
-    const job = await this.client.lockJob(this.queue);
+    const job = await this.client.lockJob(this.queue, this.maxAttempts);
 
     if (!job) {
       return false;
@@ -49,52 +59,94 @@ export class Worker {
 
     this.running = false;
 
-    if (this.timeoutId) {
-      clearTimeout(this.timeoutId);
-      this.timeoutId = null;
+    // Wake all sleeping loops so they can exit
+    for (const resolve of this.wakeResolvers) {
+      resolve();
     }
-    
-    // Resolve any pending timeout promises
-    if (this.timeoutResolve) {
-      this.timeoutResolve();
-      this.timeoutResolve = null;
-    }
+    this.wakeResolvers.clear();
 
     if (this.shutdownPromise) {
       await this.shutdownPromise;
     }
 
+    await this.stopListening();
     await this.client.close();
   }
 
-  private async workLoop(): Promise<void> {
-    while (this.running) {
+  private async startListening(): Promise<void> {
+    const pool = this.client.getPool();
+    this.listenClient = await pool.connect();
+
+    const channel = `que_jobs_${this.queue}`;
+    await this.listenClient.query(`LISTEN ${this.escapeIdentifier(channel)}`);
+
+    this.listenClient.on('notification', () => {
+      // Wake all sleeping worker loops
+      for (const resolve of this.wakeResolvers) {
+        resolve();
+      }
+      this.wakeResolvers.clear();
+    });
+  }
+
+  private async stopListening(): Promise<void> {
+    if (this.listenClient) {
       try {
-        const processed = await this.workOne();
-
-        if (!processed && this.running) {
-          await new Promise<void>((resolve) => {
-            this.timeoutResolve = resolve;
-            this.timeoutId = setTimeout(() => {
-              this.timeoutResolve = null;
-              resolve();
-            }, this.interval);
-          });
-        }
-      } catch (error) {
-        console.error('Worker error:', error);
-
-        if (this.running) {
-          await new Promise<void>((resolve) => {
-            this.timeoutResolve = resolve;
-            this.timeoutId = setTimeout(() => {
-              this.timeoutResolve = null;
-              resolve();
-            }, this.interval);
-          });
-        }
+        const channel = `que_jobs_${this.queue}`;
+        await this.listenClient.query(`UNLISTEN ${this.escapeIdentifier(channel)}`);
+      } catch {
+        // Connection may already be closed
+      } finally {
+        this.listenClient.release();
+        this.listenClient = null;
       }
     }
+  }
+
+  private escapeIdentifier(str: string): string {
+    // Simple escape for channel names — only allow safe characters
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+
+  private async workLoop(): Promise<void> {
+    this.activeWorkers++;
+
+    try {
+      while (this.running) {
+        try {
+          const processed = await this.workOne();
+
+          if (!processed && this.running) {
+            await this.waitForWake();
+          }
+        } catch (error) {
+          console.error('Worker error:', error);
+
+          if (this.running) {
+            await this.waitForWake();
+          }
+        }
+      }
+    } finally {
+      this.activeWorkers--;
+    }
+  }
+
+  /**
+   * Wait for either a LISTEN/NOTIFY wake or the poll interval, whichever comes first.
+   */
+  private waitForWake(): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const wrappedResolve = () => {
+        clearTimeout(timeoutId);
+        this.wakeResolvers.delete(wrappedResolve);
+        resolve();
+      };
+
+      this.wakeResolvers.add(wrappedResolve);
+
+      const timeoutId = setTimeout(wrappedResolve, this.interval);
+    });
   }
 
   private async processJob(job: Job): Promise<void> {

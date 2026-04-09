@@ -57,21 +57,25 @@ describe('Client', () => {
 
     it('should lock and return a job when available', async () => {
       await client.enqueue('TestJob', ['test']);
-      
+
       const job = await client.lockJob();
       expect(job).not.toBeNull();
       expect(job!.jobClass).toBe('TestJob');
       expect(job!.args).toEqual(['test']);
+      // Release the advisory lock and connection
+      await job!.done();
     });
 
     it('should respect queue filtering', async () => {
       await client.enqueue('TestJob1', [], { queue: 'queue1' });
       await client.enqueue('TestJob2', [], { queue: 'queue2' });
-      
+
       const job = await client.lockJob('queue2');
       expect(job).not.toBeNull();
       expect(job!.jobClass).toBe('TestJob2');
       expect(job!.queue).toBe('queue2');
+      // Release the advisory lock and connection
+      await job!.done();
     });
   });
 });

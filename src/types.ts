@@ -94,6 +94,7 @@ export interface WorkerOptions {
   queue?: string;
   interval?: number;
   maxAttempts?: number;
+  concurrency?: number;
 }
 
 export interface JobRow {

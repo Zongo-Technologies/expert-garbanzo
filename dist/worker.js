@@ -7,11 +7,14 @@ class Worker {
         this.workMap = {};
         this.running = false;
         this.shutdownPromise = null;
-        this.timeoutId = null;
-        this.timeoutResolve = null;
+        this.activeWorkers = 0;
+        this.wakeResolvers = new Set();
+        this.listenClient = null;
         this.client = new client_1.Client(clientConfig);
         this.queue = options.queue || '';
         this.interval = options.interval || 60 * 1000;
+        this.concurrency = options.concurrency || 3;
+        this.maxAttempts = options.maxAttempts || 5;
     }
     register(jobClass, workFunc) {
         this.workMap[jobClass] = workFunc;
@@ -21,11 +24,13 @@ class Worker {
             throw new Error('Worker is already running');
         }
         this.running = true;
-        this.shutdownPromise = this.workLoop();
+        await this.startListening();
+        const loops = Array.from({ length: this.concurrency }, () => this.workLoop());
+        this.shutdownPromise = Promise.all(loops).then(() => { });
         return this.shutdownPromise;
     }
     async workOne() {
-        const job = await this.client.lockJob(this.queue);
+        const job = await this.client.lockJob(this.queue, this.maxAttempts);
         if (!job) {
             return false;
         }
@@ -37,47 +42,84 @@ class Worker {
             return;
         }
         this.running = false;
-        if (this.timeoutId) {
-            clearTimeout(this.timeoutId);
-            this.timeoutId = null;
+        // Wake all sleeping loops so they can exit
+        for (const resolve of this.wakeResolvers) {
+            resolve();
         }
-        // Resolve any pending timeout promises
-        if (this.timeoutResolve) {
-            this.timeoutResolve();
-            this.timeoutResolve = null;
-        }
+        this.wakeResolvers.clear();
         if (this.shutdownPromise) {
             await this.shutdownPromise;
         }
+        await this.stopListening();
         await this.client.close();
     }
-    async workLoop() {
-        while (this.running) {
-            try {
-                const processed = await this.workOne();
-                if (!processed && this.running) {
-                    await new Promise((resolve) => {
-                        this.timeoutResolve = resolve;
-                        this.timeoutId = setTimeout(() => {
-                            this.timeoutResolve = null;
-                            resolve();
-                        }, this.interval);
-                    });
-                }
+    async startListening() {
+        const pool = this.client.getPool();
+        this.listenClient = await pool.connect();
+        const channel = `que_jobs_${this.queue}`;
+        await this.listenClient.query(`LISTEN ${this.escapeIdentifier(channel)}`);
+        this.listenClient.on('notification', () => {
+            // Wake all sleeping worker loops
+            for (const resolve of this.wakeResolvers) {
+                resolve();
             }
-            catch (error) {
-                console.error('Worker error:', error);
-                if (this.running) {
-                    await new Promise((resolve) => {
-                        this.timeoutResolve = resolve;
-                        this.timeoutId = setTimeout(() => {
-                            this.timeoutResolve = null;
-                            resolve();
-                        }, this.interval);
-                    });
+            this.wakeResolvers.clear();
+        });
+    }
+    async stopListening() {
+        if (this.listenClient) {
+            try {
+                const channel = `que_jobs_${this.queue}`;
+                await this.listenClient.query(`UNLISTEN ${this.escapeIdentifier(channel)}`);
+            }
+            catch {
+                // Connection may already be closed
+            }
+            finally {
+                this.listenClient.release();
+                this.listenClient = null;
+            }
+        }
+    }
+    escapeIdentifier(str) {
+        // Simple escape for channel names — only allow safe characters
+        return '"' + str.replace(/"/g, '""') + '"';
+    }
+    async workLoop() {
+        this.activeWorkers++;
+        try {
+            while (this.running) {
+                try {
+                    const processed = await this.workOne();
+                    if (!processed && this.running) {
+                        await this.waitForWake();
+                    }
+                }
+                catch (error) {
+                    console.error('Worker error:', error);
+                    if (this.running) {
+                        await this.waitForWake();
+                    }
                 }
             }
         }
+        finally {
+            this.activeWorkers--;
+        }
+    }
+    /**
+     * Wait for either a LISTEN/NOTIFY wake or the poll interval, whichever comes first.
+     */
+    waitForWake() {
+        return new Promise((resolve) => {
+            const wrappedResolve = () => {
+                clearTimeout(timeoutId);
+                this.wakeResolvers.delete(wrappedResolve);
+                resolve();
+            };
+            this.wakeResolvers.add(wrappedResolve);
+            const timeoutId = setTimeout(wrappedResolve, this.interval);
+        });
     }
     async processJob(job) {
         const workFunc = this.workMap[job.jobClass];

@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { PoolClient } from 'pg';
 import { Job, JobRow } from './types';
 export declare class JobInstance implements Job {
     readonly id: number;
@@ -9,8 +9,8 @@ export declare class JobInstance implements Job {
     readonly args: any[];
     readonly errorCount: number;
     readonly lastError?: string;
-    private pool;
-    constructor(row: JobRow, pool: Pool);
+    private client;
+    constructor(row: JobRow, client: PoolClient);
     delete(): Promise<void>;
     done(): Promise<void>;
     error(errorMessage: string): Promise<void>;

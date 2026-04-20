@@ -1,4 +1,10 @@
-import { intPow, calculateRetryDelay, formatJobArgs, parseJobArgs } from '../src/utils';
+import {
+  intPow,
+  calculateRetryDelay,
+  formatJobArgs,
+  parseJobArgs,
+  parseDailyTimesForRoutine,
+} from '../src/utils';
 
 describe('utils', () => {
   describe('intPow', () => {
@@ -43,6 +49,18 @@ describe('utils', () => {
       expect(() => parseJobArgs('invalid string' as any)).toThrow('Expected job arguments to be an array');
       expect(() => parseJobArgs({ key: 'value' } as any)).toThrow('Expected job arguments to be an array');
       expect(() => parseJobArgs(123 as any)).toThrow('Expected job arguments to be an array');
+    });
+  });
+
+  describe('parseDailyTimesForRoutine', () => {
+    it('normalizes HH:mm to PostgreSQL time strings', () => {
+      expect(parseDailyTimesForRoutine(['7:30', '14:00'])).toEqual(['07:30:00', '14:00:00']);
+    });
+
+    it('rejects invalid input', () => {
+      expect(() => parseDailyTimesForRoutine([])).toThrow('at least one time');
+      expect(() => parseDailyTimesForRoutine(['25:00'])).toThrow('25:00');
+      expect(() => parseDailyTimesForRoutine(['noon'])).toThrow('expected HH:mm');
     });
   });
 });

@@ -12,7 +12,7 @@ describe('Client', () => {
 
   beforeEach(async () => {
     client = new Client(TEST_DB_CONFIG);
-    await pool.query('TRUNCATE que_jobs');
+    await pool.query('TRUNCATE que_jobs, que_routines RESTART IDENTITY CASCADE');
   });
 
   afterEach(async () => {

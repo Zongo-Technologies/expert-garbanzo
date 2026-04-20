@@ -37,6 +37,66 @@ export interface EnqueueOptions {
   queue?: string;
 }
 
+/**
+ * Repeating schedule: same wall-clock times every calendar day in an IANA time zone
+ * (e.g. `America/New_York`). Times use 24-hour `HH:mm`.
+ */
+export interface CreateRoutineInput {
+  /** Optional label for operators or UI */
+  name?: string;
+  jobClass: string;
+  args?: JSONArray;
+  priority?: number;
+  queue?: string;
+  /** IANA zone name, e.g. `UTC`, `Europe/London`, `America/New_York` */
+  timeZone: string;
+  /** Distinct or duplicate wall-clock times per day, e.g. `['07:00', '14:00', '19:00']` */
+  dailyTimes: string[];
+}
+
+export interface UpdateRoutineInput {
+  name?: string;
+  jobClass?: string;
+  args?: JSONArray;
+  priority?: number;
+  queue?: string;
+  timeZone?: string;
+  dailyTimes?: string[];
+}
+
+export interface Routine {
+  id: number;
+  name: string;
+  jobClass: string;
+  args: JSONArray;
+  priority: number;
+  queue: string;
+  timeZone: string;
+  dailyTimes: string[];
+  enabled: boolean;
+  nextRunAt: Date;
+  createdAt: Date;
+}
+
+export interface RunDueRoutinesResult {
+  enqueuedJobIds: number[];
+  processedRoutineIds: number[];
+}
+
+export interface RoutineRow {
+  routine_id: string;
+  name: string;
+  job_class: string;
+  args: JSONArray;
+  priority: number;
+  queue: string;
+  time_zone: string;
+  daily_times: string[];
+  enabled: boolean;
+  next_run_at: Date;
+  created_at: Date;
+}
+
 export interface WorkFunction {
   (job: Job): Promise<void>;
 }

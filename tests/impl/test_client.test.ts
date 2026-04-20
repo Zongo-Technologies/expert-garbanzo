@@ -51,9 +51,7 @@ describe('que', () => {
     expect(job.jobClass).toBe('TestWorker');
     expect(job.id).toBeGreaterThan(0);
 
-    expect(workerResult).toHaveLength(0)
-
-    // Wait for job to be processed with a retry mechanism
+    // Wait for job to be processed (worker may already have run by here)
     let attempts = 0;
     const maxAttempts = 5;
     while (workerResult.length === 0 && attempts < maxAttempts) {

@@ -14,6 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/02-init-test-db.sql
+      - ./migrations/que_routines.sql:/docker-entrypoint-initdb.d/03-que_routines.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U que_user -d que_test"]
       interval: 10s

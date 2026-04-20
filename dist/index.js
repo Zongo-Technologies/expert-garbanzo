@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseJobArgs = exports.formatJobArgs = exports.calculateRetryDelay = exports.JobInstance = exports.Worker = exports.Client = void 0;
+exports.parseDailyTimesForRoutine = exports.parseJobArgs = exports.formatJobArgs = exports.calculateRetryDelay = exports.JobInstance = exports.Worker = exports.Client = void 0;
 var client_1 = require("./client");
 Object.defineProperty(exports, "Client", { enumerable: true, get: function () { return client_1.Client; } });
 var worker_1 = require("./worker");
@@ -26,4 +26,5 @@ var utils_1 = require("./utils");
 Object.defineProperty(exports, "calculateRetryDelay", { enumerable: true, get: function () { return utils_1.calculateRetryDelay; } });
 Object.defineProperty(exports, "formatJobArgs", { enumerable: true, get: function () { return utils_1.formatJobArgs; } });
 Object.defineProperty(exports, "parseJobArgs", { enumerable: true, get: function () { return utils_1.parseJobArgs; } });
+Object.defineProperty(exports, "parseDailyTimesForRoutine", { enumerable: true, get: function () { return utils_1.parseDailyTimesForRoutine; } });
 //# sourceMappingURL=index.js.map

@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { Pool } from 'pg';
 
 export const TEST_DB_CONFIG = {
@@ -35,10 +37,14 @@ export async function setupTestDatabase(): Promise<Pool> {
     )
   `);
 
+  const routinesPath = path.join(__dirname, '../migrations/que_routines.sql');
+  const routinesSql = fs.readFileSync(routinesPath, 'utf8');
+  await pool.query(routinesSql);
+
   return pool;
 }
 
 export async function cleanupTestDatabase(pool: Pool): Promise<void> {
-  await pool.query('TRUNCATE que_jobs');
+  await pool.query('TRUNCATE que_jobs, que_routines RESTART IDENTITY CASCADE');
   await pool.end();
 }

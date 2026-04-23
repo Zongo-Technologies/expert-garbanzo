@@ -23,10 +23,6 @@ export interface EnqueueOptions {
     runAt?: Date;
     queue?: string;
 }
-/**
- * Repeating schedule: same wall-clock times every calendar day in an IANA time zone
- * (e.g. `America/New_York`). Times use 24-hour `HH:mm`.
- */
 export interface CreateRoutineInput {
     /** Optional label for operators or UI */
     name?: string;
@@ -36,8 +32,14 @@ export interface CreateRoutineInput {
     queue?: string;
     /** IANA zone name, e.g. `UTC`, `Europe/London`, `America/New_York` */
     timeZone: string;
-    /** Distinct or duplicate wall-clock times per day, e.g. `['07:00', '14:00', '19:00']` */
-    dailyTimes: string[];
+    /**
+     * Standard 5-field cron expression: `minute hour day-of-month month day-of-week`
+     * Use the `Schedule` helpers to build common patterns without writing raw cron.
+     * @example '0 9 * * 1'        every Monday at 09:00
+     * @example '0 9 1 * *'        1st of every month at 09:00
+     * @example '0 9 1 1,4,7,10 *' quarterly
+     */
+    cronExpression: string;
 }
 export interface UpdateRoutineInput {
     name?: string;
@@ -46,7 +48,7 @@ export interface UpdateRoutineInput {
     priority?: number;
     queue?: string;
     timeZone?: string;
-    dailyTimes?: string[];
+    cronExpression?: string;
 }
 export interface Routine {
     id: number;
@@ -56,7 +58,7 @@ export interface Routine {
     priority: number;
     queue: string;
     timeZone: string;
-    dailyTimes: string[];
+    cronExpression: string;
     enabled: boolean;
     nextRunAt: Date;
     createdAt: Date;
@@ -73,7 +75,7 @@ export interface RoutineRow {
     priority: number;
     queue: string;
     time_zone: string;
-    daily_times: string[];
+    cron_expr: string;
     enabled: boolean;
     next_run_at: Date;
     created_at: Date;

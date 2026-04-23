@@ -3,7 +3,8 @@ import {
   calculateRetryDelay,
   formatJobArgs,
   parseJobArgs,
-  parseDailyTimesForRoutine,
+  validateCronExpression,
+  Schedule,
 } from '../src/utils';
 
 describe('utils', () => {
@@ -52,15 +53,51 @@ describe('utils', () => {
     });
   });
 
-  describe('parseDailyTimesForRoutine', () => {
-    it('normalizes HH:mm to PostgreSQL time strings', () => {
-      expect(parseDailyTimesForRoutine(['7:30', '14:00'])).toEqual(['07:30:00', '14:00:00']);
+  describe('validateCronExpression', () => {
+    it('accepts valid expressions', () => {
+      expect(() => validateCronExpression('0 9 * * 1', 'UTC')).not.toThrow();
+      expect(() => validateCronExpression('*/30 9-17 * * 1-5', 'America/New_York')).not.toThrow();
+      expect(() => validateCronExpression('0 0 1 1,4,7,10 *', 'Europe/London')).not.toThrow();
     });
 
-    it('rejects invalid input', () => {
-      expect(() => parseDailyTimesForRoutine([])).toThrow('at least one time');
-      expect(() => parseDailyTimesForRoutine(['25:00'])).toThrow('25:00');
-      expect(() => parseDailyTimesForRoutine(['noon'])).toThrow('expected HH:mm');
+    it('rejects invalid expressions', () => {
+      expect(() => validateCronExpression('not-a-cron', 'UTC')).toThrow(/invalid cron expression/i);
+      expect(() => validateCronExpression('60 9 * * *', 'UTC')).toThrow(/invalid cron expression/i); // minute > 59
+    });
+  });
+
+  describe('Schedule', () => {
+    it('daily builds correct cron', () => {
+      expect(Schedule.daily('09:00')).toBe('0 9 * * *');
+      expect(Schedule.daily('07:30')).toBe('30 7 * * *');
+    });
+
+    it('weekly builds correct cron', () => {
+      expect(Schedule.weekly(1, '09:00')).toBe('0 9 * * 1'); // Monday
+      expect(Schedule.weekly(0, '00:00')).toBe('0 0 * * 0'); // Sunday
+    });
+
+    it('monthly builds correct cron', () => {
+      expect(Schedule.monthly(1, '09:00')).toBe('0 9 1 * *');
+      expect(Schedule.monthly(15, '14:30')).toBe('30 14 15 * *');
+    });
+
+    it('quarterly builds correct cron', () => {
+      expect(Schedule.quarterly('09:00')).toBe('0 9 1 1,4,7,10 *');
+    });
+
+    it('yearly builds correct cron', () => {
+      expect(Schedule.yearly(1, 1, '00:00')).toBe('0 0 1 1 *');
+      expect(Schedule.yearly(12, 31, '23:59')).toBe('59 23 31 12 *');
+    });
+
+    it('rejects invalid time strings', () => {
+      expect(() => Schedule.daily('25:00')).toThrow(/invalid hour/i);
+      expect(() => Schedule.daily('noon')).toThrow(/invalid time/i);
+    });
+
+    it('rejects out-of-range dayOfWeek', () => {
+      expect(() => Schedule.weekly(7, '09:00')).toThrow(/dayOfWeek/i);
     });
   });
 });

@@ -1,18 +1,27 @@
 export const ROUTINE_SQL = {
   INSERT: `
-    INSERT INTO que_routines (name, job_class, args, priority, queue, time_zone, daily_times, next_run_at)
-    VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7::time[], que_next_daily_slot($7::time[], $6::text, now()))
-    RETURNING routine_id, name, job_class, args, priority, queue, time_zone, daily_times, enabled, next_run_at, created_at
+    INSERT INTO que_routines (name, job_class, args, priority, queue, time_zone, cron_expr, next_run_at)
+    VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8)
+    ON CONFLICT (name) WHERE name != ''
+    DO UPDATE SET
+      job_class  = EXCLUDED.job_class,
+      args       = EXCLUDED.args,
+      priority   = EXCLUDED.priority,
+      queue      = EXCLUDED.queue,
+      time_zone  = EXCLUDED.time_zone,
+      cron_expr  = EXCLUDED.cron_expr,
+      next_run_at = EXCLUDED.next_run_at
+    RETURNING routine_id, name, job_class, args, priority, queue, time_zone, cron_expr, enabled, next_run_at, created_at
   `,
 
   SELECT_BY_ID: `
-    SELECT routine_id, name, job_class, args, priority, queue, time_zone, daily_times, enabled, next_run_at, created_at
+    SELECT routine_id, name, job_class, args, priority, queue, time_zone, cron_expr, enabled, next_run_at, created_at
     FROM que_routines
     WHERE routine_id = $1
   `,
 
   LIST: `
-    SELECT routine_id, name, job_class, args, priority, queue, time_zone, daily_times, enabled, next_run_at, created_at
+    SELECT routine_id, name, job_class, args, priority, queue, time_zone, cron_expr, enabled, next_run_at, created_at
     FROM que_routines
     WHERE ($1::boolean IS NULL OR enabled = $1)
     ORDER BY routine_id
@@ -23,12 +32,9 @@ export const ROUTINE_SQL = {
   SET_ENABLED: `
     UPDATE que_routines
     SET enabled = $2,
-        next_run_at = CASE
-          WHEN $2 THEN que_next_daily_slot(daily_times, time_zone, now())
-          ELSE next_run_at
-        END
+        next_run_at = $3
     WHERE routine_id = $1
-    RETURNING routine_id, name, job_class, args, priority, queue, time_zone, daily_times, enabled, next_run_at, created_at
+    RETURNING routine_id, name, job_class, args, priority, queue, time_zone, cron_expr, enabled, next_run_at, created_at
   `,
 
   UPDATE: `
@@ -40,17 +46,14 @@ export const ROUTINE_SQL = {
       priority = $5,
       queue = $6,
       time_zone = $7,
-      daily_times = $8::time[],
-      next_run_at = CASE
-        WHEN $9 THEN que_next_daily_slot($8::time[], $7::text, now())
-        ELSE $10::timestamptz
-      END
+      cron_expr = $8,
+      next_run_at = $9
     WHERE routine_id = $1
-    RETURNING routine_id, name, job_class, args, priority, queue, time_zone, daily_times, enabled, next_run_at, created_at
+    RETURNING routine_id, name, job_class, args, priority, queue, time_zone, cron_expr, enabled, next_run_at, created_at
   `,
 
   SELECT_DUE: `
-    SELECT routine_id, name, job_class, args, priority, queue, time_zone, daily_times, enabled, next_run_at, created_at
+    SELECT routine_id, name, job_class, args, priority, queue, time_zone, cron_expr, enabled, next_run_at, created_at
     FROM que_routines
     WHERE enabled AND next_run_at <= now()
     ORDER BY next_run_at
@@ -60,7 +63,7 @@ export const ROUTINE_SQL = {
 
   BUMP_NEXT: `
     UPDATE que_routines
-    SET next_run_at = que_next_daily_slot(daily_times, time_zone, $2::timestamptz)
+    SET next_run_at = $2
     WHERE routine_id = $1
   `,
 } as const;

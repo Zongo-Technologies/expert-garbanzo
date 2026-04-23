@@ -17,7 +17,12 @@
       "Bash(timeout 10 npm test -- ./tests/impl)",
       "Bash(npx jest:*)",
       "Bash(npm view:*)",
-      "Bash(npm info:*)"
+      "Bash(npm info:*)",
+      "Bash(npm show *)",
+      "Read(//private/tmp/**)",
+      "Bash(mkdir -p que-test-install)",
+      "Read(//tmp/que-test-install/**)",
+      "Bash(rm -rf /tmp/que-test-install)"
     ],
     "deny": []
   }

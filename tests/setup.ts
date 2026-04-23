@@ -37,6 +37,9 @@ export async function setupTestDatabase(): Promise<Pool> {
     )
   `);
 
+  // Always drop and recreate que_routines to ensure the schema matches the current migration.
+  await pool.query('DROP TABLE IF EXISTS que_routines CASCADE');
+  await pool.query('DROP FUNCTION IF EXISTS que_next_daily_slot(time[], text, timestamptz)');
   const routinesPath = path.join(__dirname, '../migrations/que_routines.sql');
   const routinesSql = fs.readFileSync(routinesPath, 'utf8');
   await pool.query(routinesSql);

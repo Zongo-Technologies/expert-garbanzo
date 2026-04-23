@@ -31,6 +31,5 @@ export declare class Client {
      */
     runDueRoutines(limit?: number): Promise<RunDueRoutinesResult>;
     private static mapRoutineRow;
-    private static formatDailyTimeFromPg;
 }
 //# sourceMappingURL=client.d.ts.map

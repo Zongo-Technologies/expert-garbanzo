@@ -14,7 +14,7 @@ import {
 import { JobInstance } from "./job";
 import { SQL_QUERIES } from "./sql";
 import { ROUTINE_SQL } from "./routineSql";
-import { formatJobArgs, parseDailyTimesForRoutine, parseJobArgs } from "./utils";
+import { formatJobArgs, parseJobArgs, computeNextRunAt, validateCronExpression } from "./utils";
 
 export class Client {
   private pool: Pool;
@@ -144,10 +144,11 @@ export class Client {
       priority = 100,
       queue = "",
       timeZone,
-      dailyTimes,
+      cronExpression,
     } = input;
 
-    const pgTimes = parseDailyTimesForRoutine(dailyTimes);
+    validateCronExpression(cronExpression, timeZone);
+    const nextRunAt = computeNextRunAt(cronExpression, timeZone);
     const argsJson = formatJobArgs(args);
 
     const result = await this.pool.query<RoutineRow>(ROUTINE_SQL.INSERT, [
@@ -157,7 +158,8 @@ export class Client {
       priority,
       queue,
       timeZone,
-      pgTimes,
+      cronExpression,
+      nextRunAt,
     ]);
 
     return Client.mapRoutineRow(result.rows[0]);
@@ -183,7 +185,20 @@ export class Client {
   }
 
   async setRoutineEnabled(routineId: number, enabled: boolean): Promise<Routine | null> {
-    const result = await this.pool.query<RoutineRow>(ROUTINE_SQL.SET_ENABLED, [routineId, enabled]);
+    const existing = await this.getRoutine(routineId);
+    if (!existing) return null;
+
+    // Recalculate nextRunAt from now when re-enabling so it doesn't fire immediately
+    // for a slot that already passed while disabled.
+    const nextRunAt = enabled
+      ? computeNextRunAt(existing.cronExpression, existing.timeZone)
+      : existing.nextRunAt;
+
+    const result = await this.pool.query<RoutineRow>(ROUTINE_SQL.SET_ENABLED, [
+      routineId,
+      enabled,
+      nextRunAt,
+    ]);
     if (result.rows.length === 0) {
       return null;
     }
@@ -202,13 +217,17 @@ export class Client {
     const mergedPriority = patch.priority ?? existing.priority;
     const mergedQueue = patch.queue ?? existing.queue;
     const mergedTz = patch.timeZone ?? existing.timeZone;
-    const mergedTimes = patch.dailyTimes
-      ? parseDailyTimesForRoutine(patch.dailyTimes)
-      : parseDailyTimesForRoutine(existing.dailyTimes);
+    const mergedCron = patch.cronExpression ?? existing.cronExpression;
 
-    const scheduleChanged =
-      patch.dailyTimes !== undefined ||
-      patch.timeZone !== undefined;
+    const scheduleChanged = patch.cronExpression !== undefined || patch.timeZone !== undefined;
+
+    if (scheduleChanged) {
+      validateCronExpression(mergedCron, mergedTz);
+    }
+
+    const nextRunAt = scheduleChanged
+      ? computeNextRunAt(mergedCron, mergedTz)
+      : existing.nextRunAt;
 
     const result = await this.pool.query<RoutineRow>(ROUTINE_SQL.UPDATE, [
       routineId,
@@ -218,9 +237,8 @@ export class Client {
       mergedPriority,
       mergedQueue,
       mergedTz,
-      mergedTimes,
-      scheduleChanged,
-      existing.nextRunAt,
+      mergedCron,
+      nextRunAt,
     ]);
 
     if (result.rows.length === 0) {
@@ -251,7 +269,8 @@ export class Client {
         });
         enqueuedJobIds.push(job.id);
         processedRoutineIds.push(parseInt(row.routine_id, 10));
-        await client.query(ROUTINE_SQL.BUMP_NEXT, [row.routine_id, slotAt]);
+        const nextSlot = computeNextRunAt(row.cron_expr, row.time_zone, slotAt);
+        await client.query(ROUTINE_SQL.BUMP_NEXT, [row.routine_id, nextSlot]);
       }
 
       await client.query("COMMIT");
@@ -278,22 +297,10 @@ export class Client {
       priority: row.priority,
       queue: row.queue,
       timeZone: row.time_zone,
-      dailyTimes: (row.daily_times ?? []).map(Client.formatDailyTimeFromPg),
+      cronExpression: row.cron_expr,
       enabled: row.enabled,
       nextRunAt: row.next_run_at,
       createdAt: row.created_at,
     };
-  }
-
-  private static formatDailyTimeFromPg(value: unknown): string {
-    if (typeof value === "string") {
-      return value.slice(0, 5);
-    }
-    if (value instanceof Date) {
-      const hours = value.getUTCHours();
-      const minutes = value.getUTCMinutes();
-      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-    }
-    return String(value);
   }
 }

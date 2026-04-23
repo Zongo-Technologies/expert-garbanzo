@@ -2,5 +2,5 @@ export { Client } from './client';
 export { Worker } from './worker';
 export { JobInstance } from './job';
 export * from './types';
-export { calculateRetryDelay, formatJobArgs, parseJobArgs, parseDailyTimesForRoutine } from './utils';
+export { calculateRetryDelay, formatJobArgs, parseJobArgs, computeNextRunAt, validateCronExpression, Schedule } from './utils';
 //# sourceMappingURL=index.d.ts.map

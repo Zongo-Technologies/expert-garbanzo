@@ -98,8 +98,9 @@ class Client {
         await this.pool.end();
     }
     async createRoutine(input) {
-        const { name = "", jobClass, args = [], priority = 100, queue = "", timeZone, dailyTimes, } = input;
-        const pgTimes = (0, utils_1.parseDailyTimesForRoutine)(dailyTimes);
+        const { name = "", jobClass, args = [], priority = 100, queue = "", timeZone, cronExpression, } = input;
+        (0, utils_1.validateCronExpression)(cronExpression, timeZone);
+        const nextRunAt = (0, utils_1.computeNextRunAt)(cronExpression, timeZone);
         const argsJson = (0, utils_1.formatJobArgs)(args);
         const result = await this.pool.query(routineSql_1.ROUTINE_SQL.INSERT, [
             name,
@@ -108,7 +109,8 @@ class Client {
             priority,
             queue,
             timeZone,
-            pgTimes,
+            cronExpression,
+            nextRunAt,
         ]);
         return Client.mapRoutineRow(result.rows[0]);
     }
@@ -129,7 +131,19 @@ class Client {
         return (result.rowCount ?? 0) > 0;
     }
     async setRoutineEnabled(routineId, enabled) {
-        const result = await this.pool.query(routineSql_1.ROUTINE_SQL.SET_ENABLED, [routineId, enabled]);
+        const existing = await this.getRoutine(routineId);
+        if (!existing)
+            return null;
+        // Recalculate nextRunAt from now when re-enabling so it doesn't fire immediately
+        // for a slot that already passed while disabled.
+        const nextRunAt = enabled
+            ? (0, utils_1.computeNextRunAt)(existing.cronExpression, existing.timeZone)
+            : existing.nextRunAt;
+        const result = await this.pool.query(routineSql_1.ROUTINE_SQL.SET_ENABLED, [
+            routineId,
+            enabled,
+            nextRunAt,
+        ]);
         if (result.rows.length === 0) {
             return null;
         }
@@ -146,11 +160,14 @@ class Client {
         const mergedPriority = patch.priority ?? existing.priority;
         const mergedQueue = patch.queue ?? existing.queue;
         const mergedTz = patch.timeZone ?? existing.timeZone;
-        const mergedTimes = patch.dailyTimes
-            ? (0, utils_1.parseDailyTimesForRoutine)(patch.dailyTimes)
-            : (0, utils_1.parseDailyTimesForRoutine)(existing.dailyTimes);
-        const scheduleChanged = patch.dailyTimes !== undefined ||
-            patch.timeZone !== undefined;
+        const mergedCron = patch.cronExpression ?? existing.cronExpression;
+        const scheduleChanged = patch.cronExpression !== undefined || patch.timeZone !== undefined;
+        if (scheduleChanged) {
+            (0, utils_1.validateCronExpression)(mergedCron, mergedTz);
+        }
+        const nextRunAt = scheduleChanged
+            ? (0, utils_1.computeNextRunAt)(mergedCron, mergedTz)
+            : existing.nextRunAt;
         const result = await this.pool.query(routineSql_1.ROUTINE_SQL.UPDATE, [
             routineId,
             mergedName,
@@ -159,9 +176,8 @@ class Client {
             mergedPriority,
             mergedQueue,
             mergedTz,
-            mergedTimes,
-            scheduleChanged,
-            existing.nextRunAt,
+            mergedCron,
+            nextRunAt,
         ]);
         if (result.rows.length === 0) {
             return null;
@@ -188,7 +204,8 @@ class Client {
                 });
                 enqueuedJobIds.push(job.id);
                 processedRoutineIds.push(parseInt(row.routine_id, 10));
-                await client.query(routineSql_1.ROUTINE_SQL.BUMP_NEXT, [row.routine_id, slotAt]);
+                const nextSlot = (0, utils_1.computeNextRunAt)(row.cron_expr, row.time_zone, slotAt);
+                await client.query(routineSql_1.ROUTINE_SQL.BUMP_NEXT, [row.routine_id, nextSlot]);
             }
             await client.query("COMMIT");
         }
@@ -215,22 +232,11 @@ class Client {
             priority: row.priority,
             queue: row.queue,
             timeZone: row.time_zone,
-            dailyTimes: (row.daily_times ?? []).map(Client.formatDailyTimeFromPg),
+            cronExpression: row.cron_expr,
             enabled: row.enabled,
             nextRunAt: row.next_run_at,
             createdAt: row.created_at,
         };
-    }
-    static formatDailyTimeFromPg(value) {
-        if (typeof value === "string") {
-            return value.slice(0, 5);
-        }
-        if (value instanceof Date) {
-            const hours = value.getUTCHours();
-            const minutes = value.getUTCMinutes();
-            return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-        }
-        return String(value);
     }
 }
 exports.Client = Client;

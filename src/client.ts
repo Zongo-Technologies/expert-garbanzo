@@ -300,6 +300,7 @@ export class Client {
       cronExpression: row.cron_expr,
       enabled: row.enabled,
       nextRunAt: row.next_run_at,
+      totalRuns: parseInt(row.total_runs, 10),
       createdAt: row.created_at,
     };
   }

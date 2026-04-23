@@ -77,6 +77,7 @@ export interface Routine {
   cronExpression: string;
   enabled: boolean;
   nextRunAt: Date;
+  totalRuns: number;
   createdAt: Date;
 }
 
@@ -96,6 +97,7 @@ export interface RoutineRow {
   cron_expr: string;
   enabled: boolean;
   next_run_at: Date;
+  total_runs: string; // bigserial comes back as string from pg driver
   created_at: Date;
 }
 

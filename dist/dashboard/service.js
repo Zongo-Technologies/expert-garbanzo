@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DashboardService = void 0;
+const routineSql_1 = require("../routineSql");
 class DashboardService {
     constructor(pool, options = {}) {
         this.pool = pool;
@@ -13,154 +14,99 @@ class DashboardService {
     }
     async getStats() {
         const now = new Date();
-        // Get total count
-        const totalResult = await this.pool.query('SELECT COUNT(*) as count FROM que_jobs');
+        const [totalResult, scheduledResult, readyResult, failedResult, avgErrorResult, oldestResult, newestResult, byQueueResult, byClassResult, recentFailuresResult, totalRunsResult,] = await Promise.all([
+            this.pool.query('SELECT COUNT(*) as count FROM que_jobs'),
+            this.pool.query('SELECT COUNT(*) as count FROM que_jobs WHERE run_at > $1', [now]),
+            this.pool.query('SELECT COUNT(*) as count FROM que_jobs WHERE run_at <= $1', [now]),
+            this.pool.query('SELECT COUNT(*) as count FROM que_jobs WHERE error_count > 0'),
+            this.pool.query('SELECT AVG(error_count) as avg FROM que_jobs WHERE error_count > 0'),
+            this.pool.query('SELECT run_at FROM que_jobs ORDER BY run_at ASC LIMIT 1'),
+            this.pool.query('SELECT run_at FROM que_jobs ORDER BY run_at DESC LIMIT 1'),
+            this.pool.query('SELECT queue, COUNT(*) as count FROM que_jobs GROUP BY queue ORDER BY count DESC'),
+            this.pool.query('SELECT job_class, COUNT(*) as count FROM que_jobs GROUP BY job_class ORDER BY count DESC LIMIT 20'),
+            this.pool.query('SELECT job_id, job_class, queue, error_count, last_error, run_at FROM que_jobs WHERE error_count > 0 ORDER BY run_at DESC LIMIT $1', [this.options.maxRecentFailures]),
+            this.pool.query(routineSql_1.ROUTINE_SQL.TOTAL_RUNS).catch(() => ({ rows: [{ total: '0' }] })),
+        ]);
         const total = parseInt(totalResult.rows[0].count);
-        // Get scheduled jobs (future run_at)
-        const scheduledResult = await this.pool.query('SELECT COUNT(*) as count FROM que_jobs WHERE run_at > $1', [now]);
-        const scheduled = parseInt(scheduledResult.rows[0].count);
-        // Get ready jobs (past run_at)
-        const readyResult = await this.pool.query('SELECT COUNT(*) as count FROM que_jobs WHERE run_at <= $1', [now]);
-        const ready = parseInt(readyResult.rows[0].count);
-        // Get failed jobs (error_count > 0)
-        const failedResult = await this.pool.query('SELECT COUNT(*) as count FROM que_jobs WHERE error_count > 0');
         const failed = parseInt(failedResult.rows[0].count);
-        // Calculate error rate
-        const errorRate = total > 0 ? (failed / total) * 100 : 0;
-        // Get average error count
-        const avgErrorResult = await this.pool.query('SELECT AVG(error_count) as avg FROM que_jobs WHERE error_count > 0');
-        const avgErrorCount = parseFloat(avgErrorResult.rows[0].avg) || 0;
-        // Get oldest and newest jobs
-        const oldestResult = await this.pool.query('SELECT run_at FROM que_jobs ORDER BY run_at ASC LIMIT 1');
-        const oldestJob = oldestResult.rows[0]?.run_at || null;
-        const newestResult = await this.pool.query('SELECT run_at FROM que_jobs ORDER BY run_at DESC LIMIT 1');
-        const newestJob = newestResult.rows[0]?.run_at || null;
-        // Get jobs by queue
-        const byQueueResult = await this.pool.query(`
-      SELECT queue, COUNT(*) as count 
-      FROM que_jobs 
-      GROUP BY queue 
-      ORDER BY count DESC
-    `);
-        const totalByQueue = byQueueResult.rows.map(row => ({
-            queue: row.queue || '(default)',
-            count: parseInt(row.count),
-        }));
-        // Get jobs by class
-        const byClassResult = await this.pool.query(`
-      SELECT job_class, COUNT(*) as count 
-      FROM que_jobs 
-      GROUP BY job_class 
-      ORDER BY count DESC 
-      LIMIT 20
-    `);
-        const totalByClass = byClassResult.rows.map(row => ({
-            jobClass: row.job_class,
-            count: parseInt(row.count),
-        }));
-        // Get recent failures
-        const recentFailuresResult = await this.pool.query(`
-      SELECT job_id, job_class, queue, error_count, last_error, run_at
-      FROM que_jobs
-      WHERE error_count > 0
-      ORDER BY run_at DESC
-      LIMIT $1
-    `, [this.options.maxRecentFailures]);
-        const recentFailures = recentFailuresResult.rows.map(row => ({
-            id: parseInt(row.job_id),
-            jobClass: row.job_class,
-            queue: row.queue || '(default)',
-            errorCount: row.error_count,
-            lastError: row.last_error || '',
-            runAt: row.run_at,
-        }));
         return {
             total,
-            scheduled,
-            ready,
+            scheduled: parseInt(scheduledResult.rows[0].count),
+            ready: parseInt(readyResult.rows[0].count),
             failed,
-            errorRate,
-            avgErrorCount,
-            oldestJob,
-            newestJob,
-            totalByQueue,
-            totalByClass,
-            recentFailures,
+            errorRate: total > 0 ? (failed / total) * 100 : 0,
+            avgErrorCount: parseFloat(avgErrorResult.rows[0].avg) || 0,
+            oldestJob: oldestResult.rows[0]?.run_at || null,
+            newestJob: newestResult.rows[0]?.run_at || null,
+            totalByQueue: byQueueResult.rows.map(r => ({ queue: r.queue || '(default)', count: parseInt(r.count) })),
+            totalByClass: byClassResult.rows.map(r => ({ jobClass: r.job_class, count: parseInt(r.count) })),
+            totalRoutineRuns: parseInt(totalRunsResult.rows[0].total, 10),
+            recentFailures: recentFailuresResult.rows.map(r => ({
+                id: parseInt(r.job_id),
+                jobClass: r.job_class,
+                queue: r.queue || '(default)',
+                errorCount: r.error_count,
+                lastError: r.last_error || '',
+                runAt: r.run_at,
+            })),
         };
     }
     async getJobs(options = {}) {
-        const { queue, jobClass, status = 'all', limit = 50, offset = 0, } = options;
-        const whereConditions = [];
+        const { queue, jobClass, status = 'all', limit = 50, offset = 0 } = options;
+        const where = [];
         const params = [];
-        let paramIndex = 1;
+        let p = 1;
         if (queue !== undefined) {
-            whereConditions.push(`queue = $${paramIndex++}`);
+            where.push(`queue = $${p++}`);
             params.push(queue);
         }
         if (jobClass) {
-            whereConditions.push(`job_class = $${paramIndex++}`);
+            where.push(`job_class = $${p++}`);
             params.push(jobClass);
         }
         const now = new Date();
         if (status === 'ready') {
-            whereConditions.push(`run_at <= $${paramIndex++}`);
+            where.push(`run_at <= $${p++}`);
             params.push(now);
         }
         else if (status === 'scheduled') {
-            whereConditions.push(`run_at > $${paramIndex++}`);
+            where.push(`run_at > $${p++}`);
             params.push(now);
         }
         else if (status === 'failed') {
-            whereConditions.push('error_count > 0');
+            where.push('error_count > 0');
         }
-        const whereClause = whereConditions.length > 0
-            ? `WHERE ${whereConditions.join(' AND ')}`
-            : '';
-        // Get total count
-        const countQuery = `SELECT COUNT(*) as count FROM que_jobs ${whereClause}`;
-        const countResult = await this.pool.query(countQuery, params);
-        const total = parseInt(countResult.rows[0].count);
-        // Get jobs
-        params.push(limit, offset);
-        const jobsQuery = `
-      SELECT job_id, queue, priority, run_at, job_class, args, error_count, last_error
-      FROM que_jobs
-      ${whereClause}
-      ORDER BY priority ASC, run_at ASC, job_id ASC
-      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
-    `;
-        const jobsResult = await this.pool.query(jobsQuery, params);
-        const jobs = jobsResult.rows.map(row => ({
-            id: parseInt(row.job_id),
-            queue: row.queue,
-            priority: row.priority,
-            runAt: row.run_at,
-            jobClass: row.job_class,
-            args: row.args,
-            errorCount: row.error_count,
-            lastError: row.last_error || undefined,
-        }));
-        return { jobs, total };
+        const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const [countResult, jobsResult] = await Promise.all([
+            this.pool.query(`SELECT COUNT(*) as count FROM que_jobs ${whereClause}`, params),
+            this.pool.query(`SELECT job_id, queue, priority, run_at, job_class, args, error_count, last_error
+         FROM que_jobs ${whereClause}
+         ORDER BY priority ASC, run_at ASC, job_id ASC
+         LIMIT $${p++} OFFSET $${p++}`, [...params, limit, offset]),
+        ]);
+        return {
+            total: parseInt(countResult.rows[0].count),
+            jobs: jobsResult.rows.map(r => ({
+                id: parseInt(r.job_id),
+                queue: r.queue,
+                priority: r.priority,
+                runAt: r.run_at,
+                jobClass: r.job_class,
+                args: r.args,
+                errorCount: r.error_count,
+                lastError: r.last_error || undefined,
+            })),
+        };
     }
     async getJob(jobId) {
-        const result = await this.pool.query(`
-      SELECT job_id, queue, priority, run_at, job_class, args, error_count, last_error
-      FROM que_jobs
-      WHERE job_id = $1
-    `, [jobId]);
-        if (result.rows.length === 0) {
+        const result = await this.pool.query('SELECT job_id, queue, priority, run_at, job_class, args, error_count, last_error FROM que_jobs WHERE job_id = $1', [jobId]);
+        if (!result.rows.length)
             return null;
-        }
-        const row = result.rows[0];
+        const r = result.rows[0];
         return {
-            id: parseInt(row.job_id),
-            queue: row.queue,
-            priority: row.priority,
-            runAt: row.run_at,
-            jobClass: row.job_class,
-            args: row.args,
-            errorCount: row.error_count,
-            lastError: row.last_error || undefined,
+            id: parseInt(r.job_id), queue: r.queue, priority: r.priority,
+            runAt: r.run_at, jobClass: r.job_class, args: r.args,
+            errorCount: r.error_count, lastError: r.last_error || undefined,
         };
     }
     async deleteJob(jobId) {
@@ -168,34 +114,54 @@ class DashboardService {
         return (result.rowCount ?? 0) > 0;
     }
     async retryJob(jobId) {
-        const result = await this.pool.query(`
-      UPDATE que_jobs
-      SET error_count = 0,
-          last_error = NULL,
-          run_at = NOW()
-      WHERE job_id = $1
-    `, [jobId]);
+        const result = await this.pool.query('UPDATE que_jobs SET error_count = 0, last_error = NULL, run_at = NOW() WHERE job_id = $1', [jobId]);
         return (result.rowCount ?? 0) > 0;
+    }
+    async bulkDeleteJobs(jobIds) {
+        if (!jobIds.length)
+            return 0;
+        const result = await this.pool.query('DELETE FROM que_jobs WHERE job_id = ANY($1::bigint[])', [jobIds]);
+        return result.rowCount ?? 0;
+    }
+    async bulkRetryJobs(jobIds) {
+        if (!jobIds.length)
+            return 0;
+        const result = await this.pool.query('UPDATE que_jobs SET error_count = 0, last_error = NULL, run_at = NOW() WHERE job_id = ANY($1::bigint[])', [jobIds]);
+        return result.rowCount ?? 0;
     }
     async updateJobArgs(jobId, args) {
         const result = await this.pool.query('UPDATE que_jobs SET args = $1::jsonb WHERE job_id = $2', [JSON.stringify(args), jobId]);
         return (result.rowCount ?? 0) > 0;
     }
     async getQueues() {
-        const result = await this.pool.query(`
-      SELECT DISTINCT queue 
-      FROM que_jobs 
-      ORDER BY queue
-    `);
-        return result.rows.map(row => row.queue || '(default)');
+        const result = await this.pool.query('SELECT DISTINCT queue FROM que_jobs ORDER BY queue');
+        return result.rows.map(r => r.queue || '(default)');
     }
     async getJobClasses() {
-        const result = await this.pool.query(`
-      SELECT DISTINCT job_class 
-      FROM que_jobs 
-      ORDER BY job_class
-    `);
-        return result.rows.map(row => row.job_class);
+        const result = await this.pool.query('SELECT DISTINCT job_class FROM que_jobs ORDER BY job_class');
+        return result.rows.map(r => r.job_class);
+    }
+    async getRoutines() {
+        const result = await this.pool.query(routineSql_1.ROUTINE_SQL.LIST_ALL).catch(() => ({ rows: [] }));
+        return result.rows.map(r => ({
+            id: parseInt(r.routine_id, 10),
+            name: r.name,
+            jobClass: r.job_class,
+            cronExpression: r.cron_expr,
+            timeZone: r.time_zone,
+            enabled: r.enabled,
+            nextRunAt: r.next_run_at,
+            totalRuns: parseInt(r.total_runs, 10),
+            createdAt: r.created_at,
+        }));
+    }
+    async setRoutineEnabled(routineId, enabled) {
+        const result = await this.pool.query('UPDATE que_routines SET enabled = $2 WHERE routine_id = $1', [routineId, enabled]);
+        return (result.rowCount ?? 0) > 0;
+    }
+    async deleteRoutine(routineId) {
+        const result = await this.pool.query('DELETE FROM que_routines WHERE routine_id = $1', [routineId]);
+        return (result.rowCount ?? 0) > 0;
     }
     getOptions() {
         return this.options;

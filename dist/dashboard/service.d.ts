@@ -16,6 +16,7 @@ export interface QueueStats {
         jobClass: string;
         count: number;
     }>;
+    totalRoutineRuns: number;
     recentFailures: Array<{
         id: number;
         jobClass: string;
@@ -34,6 +35,17 @@ export interface Job {
     args: unknown[];
     errorCount: number;
     lastError?: string;
+}
+export interface RoutineSummary {
+    id: number;
+    name: string;
+    jobClass: string;
+    cronExpression: string;
+    timeZone: string;
+    enabled: boolean;
+    nextRunAt: Date;
+    totalRuns: number;
+    createdAt: Date;
 }
 export interface DashboardOptions {
     title?: string;
@@ -69,9 +81,14 @@ export declare class DashboardService {
     getJob(jobId: number): Promise<Job | null>;
     deleteJob(jobId: number): Promise<boolean>;
     retryJob(jobId: number): Promise<boolean>;
+    bulkDeleteJobs(jobIds: number[]): Promise<number>;
+    bulkRetryJobs(jobIds: number[]): Promise<number>;
     updateJobArgs(jobId: number, args: unknown[]): Promise<boolean>;
     getQueues(): Promise<string[]>;
     getJobClasses(): Promise<string[]>;
+    getRoutines(): Promise<RoutineSummary[]>;
+    setRoutineEnabled(routineId: number, enabled: boolean): Promise<boolean>;
+    deleteRoutine(routineId: number): Promise<boolean>;
     getOptions(): DashboardInternalOptions;
 }
 //# sourceMappingURL=service.d.ts.map

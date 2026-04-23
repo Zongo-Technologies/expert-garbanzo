@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS que_routines (
   cron_expr text NOT NULL,
   enabled boolean NOT NULL DEFAULT true,
   next_run_at timestamptz NOT NULL,
+  total_runs bigint NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 

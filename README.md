@@ -11,6 +11,7 @@
 
 - ⚡ **High Performance** - PostgreSQL-backed with advisory locks for reliable job processing
 - 📊 **Real-time Dashboard** - Beautiful web UI for monitoring and managing jobs
+- 🕐 **Routines** - Recurring scheduled jobs with cron expressions, any frequency
 - 🔐 **Enterprise Security** - SSL/TLS support with client certificates
 - 🎯 **Priority Queues** - Multiple queues with configurable priorities
 - 🔄 **Automatic Retries** - Exponential backoff for failed jobs
@@ -65,23 +66,15 @@ await worker.work();
 
 ### Database Setup
 
-Create the required table:
+Copy the migration files into your project, then run them against your database:
 
-```sql
-CREATE TABLE que_jobs (
-    priority    smallint    NOT NULL DEFAULT 100,
-    run_at      timestamptz NOT NULL DEFAULT now(),
-    job_id      bigserial   NOT NULL,
-    job_class   text        NOT NULL,
-    args        json        NOT NULL DEFAULT '[]'::json,
-    error_count integer     NOT NULL DEFAULT 0,
-    last_error  text,
-    queue       text        NOT NULL DEFAULT '',
-    PRIMARY KEY (queue, priority, run_at, job_id)
-);
+```bash
+npx worker-que migrate        # copies SQL files to ./migrations/
+psql -U postgres -d myapp -f migrations/schema.sql
+psql -U postgres -d myapp -f migrations/que_routines.sql   # optional: only if using routines
 ```
 
-Or use the included migration:
+Or run the SQL directly from the package:
 
 ```bash
 psql -U postgres -d myapp -f node_modules/worker-que/migrations/schema.sql
@@ -114,10 +107,13 @@ app.listen(3000);
 
 **Dashboard Features:**
 - 📊 Real-time job statistics with auto-refresh
+- 🕐 Routines tab — view all schedules, enable/disable, see total runs
 - 📈 Visual analytics by queue and class
-- 🔍 Filter and search jobs
-- 🔄 Retry failed jobs
-- 🗑️ Delete jobs
+- 🔍 Filter jobs by status, queue, and class
+- ☑️ Multi-select jobs for bulk retry or delete
+- 🔴 Click-to-expand error viewer with full stack trace
+- 🔄 Retry failed jobs (single or bulk)
+- 🗑️ Delete jobs (single or bulk)
 - 🔐 Built-in secure authentication with sessions
 - 🎨 Modern Microsoft Fluent Design UI
 - 📱 Fully responsive design
@@ -219,6 +215,179 @@ const tomorrow = new Date();
 tomorrow.setDate(tomorrow.getDate() + 1);
 tomorrow.setHours(9, 0, 0, 0);
 await client.enqueue('DailyReport', [data], { runAt: tomorrow });
+```
+
+### Routines
+
+Routines are recurring jobs that fire on a cron schedule. They are stored in PostgreSQL — no external cron daemon or `setInterval` needed beyond a single polling call.
+
+#### Setup
+
+```bash
+psql -U postgres -d myapp -f migrations/que_routines.sql
+```
+
+#### Defining routines
+
+Use the `Schedule` helpers to build common patterns, or pass any standard 5-field cron expression:
+
+```typescript
+import { Client, Schedule } from 'worker-que';
+
+const client = new Client({ /* config */ });
+
+// Every day at 09:00 America/New_York
+await client.createRoutine({
+  name: 'daily-report',           // unique name → idempotent (safe to call on every deploy)
+  jobClass: 'SendDailyReport',
+  args: [{ format: 'pdf' }],
+  timeZone: 'America/New_York',
+  cronExpression: Schedule.daily('09:00'),
+});
+
+// Every Monday at 08:00 UTC
+await client.createRoutine({
+  name: 'weekly-digest',
+  jobClass: 'SendWeeklyDigest',
+  args: [],
+  timeZone: 'UTC',
+  cronExpression: Schedule.weekly(1, '08:00'),   // 1 = Monday
+});
+
+// 1st of every month at midnight
+await client.createRoutine({
+  name: 'monthly-billing',
+  jobClass: 'RunMonthlyBilling',
+  args: [],
+  timeZone: 'UTC',
+  cronExpression: Schedule.monthly(1, '00:00'),
+});
+
+// Quarterly (Jan/Apr/Jul/Oct 1st)
+await client.createRoutine({
+  name: 'quarterly-review',
+  jobClass: 'RunQuarterlyReview',
+  args: [],
+  timeZone: 'Europe/London',
+  cronExpression: Schedule.quarterly('09:00'),
+});
+
+// Annually — January 1st at midnight
+await client.createRoutine({
+  name: 'annual-audit',
+  jobClass: 'RunAnnualAudit',
+  args: [],
+  timeZone: 'UTC',
+  cronExpression: Schedule.yearly(1, 1, '00:00'),
+});
+
+// Raw cron — every 30 min, 9–5, weekdays
+await client.createRoutine({
+  name: 'business-hours-sync',
+  jobClass: 'SyncData',
+  args: [],
+  timeZone: 'UTC',
+  cronExpression: '*/30 9-17 * * 1-5',
+});
+```
+
+#### Schedule helpers
+
+| Helper | Example | Cron produced |
+|---|---|---|
+| `Schedule.daily(time)` | `Schedule.daily('09:00')` | `0 9 * * *` |
+| `Schedule.weekly(dow, time)` | `Schedule.weekly(1, '09:00')` | `0 9 * * 1` |
+| `Schedule.monthly(day, time)` | `Schedule.monthly(1, '09:00')` | `0 9 1 * *` |
+| `Schedule.quarterly(time)` | `Schedule.quarterly('09:00')` | `0 9 1 1,4,7,10 *` |
+| `Schedule.yearly(month, day, time)` | `Schedule.yearly(1, 1, '00:00')` | `0 0 1 1 *` |
+
+`dow` is 0 (Sunday) – 6 (Saturday). All `time` values are 24-hour `HH:mm`.
+
+#### Firing due routines
+
+Routines don't fire on their own — you drive them from a scheduler loop. Call `runDueRoutines()` at a regular cadence (every minute is typical):
+
+```typescript
+// Using setInterval
+setInterval(async () => {
+  const result = await client.runDueRoutines();
+  // result = { enqueuedJobIds: [...], processedRoutineIds: [...] }
+}, 60_000);
+
+// Or from an existing cron job / external scheduler
+// The call is concurrency-safe (uses FOR UPDATE SKIP LOCKED)
+```
+
+Each call enqueues one job per due routine and advances `nextRunAt` to the next slot. Multiple processes can call `runDueRoutines()` simultaneously without double-firing.
+
+#### Idempotency
+
+Named routines are **idempotent**: calling `createRoutine` with the same `name` a second time updates the existing routine rather than creating a duplicate. This makes it safe to register all routines on every application startup:
+
+```typescript
+// Safe to run on every deploy
+async function registerRoutines(client: Client) {
+  await client.createRoutine({
+    name: 'daily-report',
+    jobClass: 'SendDailyReport',
+    cronExpression: Schedule.daily('09:00'),
+    timeZone: 'UTC',
+    args: [],
+  });
+  // ...more routines
+}
+```
+
+Routines without a `name` (or with an empty name) are not deduplicated.
+
+#### Managing routines
+
+```typescript
+// List all routines
+const routines = await client.listRoutines();
+const active   = await client.listRoutines({ enabled: true });
+
+// Pause / resume
+await client.setRoutineEnabled(routineId, false);   // pause
+await client.setRoutineEnabled(routineId, true);    // resume (recalculates nextRunAt)
+
+// Update schedule
+await client.updateRoutine(routineId, {
+  cronExpression: Schedule.weekly(5, '17:00'),      // change to Friday 5 PM
+  timeZone: 'America/Los_Angeles',
+});
+
+// Delete
+await client.deleteRoutine(routineId);
+```
+
+#### Routine object
+
+```typescript
+{
+  id: number;
+  name: string;
+  jobClass: string;
+  args: JSONArray;
+  priority: number;
+  queue: string;
+  timeZone: string;
+  cronExpression: string;
+  enabled: boolean;
+  nextRunAt: Date;
+  totalRuns: number;      // incremented each time a job is enqueued
+  createdAt: Date;
+}
+```
+
+#### Existing database migrations
+
+If you are upgrading from a previous version of worker-que, run the numbered migration files in order:
+
+```bash
+psql -U postgres -d myapp -f migrations/que_routines_v2_cron.sql       # daily_times → cron_expr
+psql -U postgres -d myapp -f migrations/que_routines_v3_idempotent.sql  # unique name index
+psql -U postgres -d myapp -f migrations/que_routines_v4_stats.sql       # total_runs counter
 ```
 
 ### Transaction Support
@@ -388,6 +557,48 @@ And these methods:
 - `job.done()` - Mark as completed
 - `job.error(message)` - Mark as failed
 - `job.delete()` - Remove from queue
+
+### Routines API
+
+#### `client.createRoutine(input): Promise<Routine>`
+
+Creates or updates (upserts) a routine. Named routines are idempotent.
+
+```typescript
+{
+  name?: string;           // unique key for upsert; omit for anonymous routines
+  jobClass: string;
+  args?: JSONArray;
+  priority?: number;       // default 100
+  queue?: string;          // default ''
+  timeZone: string;        // IANA zone, e.g. 'UTC', 'America/New_York'
+  cronExpression: string;  // 5-field cron or Schedule helper
+}
+```
+
+#### `client.runDueRoutines(limit?): Promise<RunDueRoutinesResult>`
+
+Enqueues one job per due routine and advances each routine's `nextRunAt`. Call this on a regular interval (e.g. every minute). Concurrency-safe.
+
+#### `client.listRoutines(filter?): Promise<Routine[]>`
+
+Returns all routines, optionally filtered by `{ enabled: true | false }`.
+
+#### `client.getRoutine(id): Promise<Routine | null>`
+
+Returns a single routine by ID.
+
+#### `client.updateRoutine(id, patch): Promise<Routine | null>`
+
+Partially updates a routine. Recalculates `nextRunAt` only if `cronExpression` or `timeZone` changes.
+
+#### `client.setRoutineEnabled(id, enabled): Promise<Routine | null>`
+
+Pauses or resumes a routine. Resuming recalculates `nextRunAt` from now.
+
+#### `client.deleteRoutine(id): Promise<boolean>`
+
+Permanently removes a routine.
 
 ## Performance Tips
 

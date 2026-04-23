@@ -274,6 +274,79 @@ function createDashboard(pool, options = {}) {
             res.status(500).json({ error: 'Failed to fetch job classes' });
         }
     });
+    // API: Bulk job actions
+    router.post('/api/jobs/bulk', express_2.default.json(), async (req, res) => {
+        try {
+            const { action, jobIds } = req.body;
+            if (!Array.isArray(jobIds) || !jobIds.every(id => typeof id === 'number')) {
+                res.status(400).json({ error: 'jobIds must be an array of numbers' });
+                return;
+            }
+            if (action === 'delete') {
+                const count = await service.bulkDeleteJobs(jobIds);
+                res.json({ success: true, affected: count });
+            }
+            else if (action === 'retry') {
+                const count = await service.bulkRetryJobs(jobIds);
+                res.json({ success: true, affected: count });
+            }
+            else {
+                res.status(400).json({ error: 'action must be "delete" or "retry"' });
+            }
+        }
+        catch (error) {
+            console.error('Error bulk action:', error);
+            res.status(500).json({ error: 'Bulk action failed' });
+        }
+    });
+    // API: List routines
+    router.get('/api/routines', async (req, res) => {
+        try {
+            const routines = await service.getRoutines();
+            res.json(routines);
+        }
+        catch (error) {
+            console.error('Error fetching routines:', error);
+            res.status(500).json({ error: 'Failed to fetch routines' });
+        }
+    });
+    // API: Enable/disable a routine
+    router.post('/api/routines/:id/enabled', express_2.default.json(), async (req, res) => {
+        try {
+            const routineId = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+            const { enabled } = req.body;
+            if (typeof enabled !== 'boolean') {
+                res.status(400).json({ error: 'enabled must be a boolean' });
+                return;
+            }
+            const ok = await service.setRoutineEnabled(routineId, enabled);
+            if (!ok) {
+                res.status(404).json({ error: 'Routine not found' });
+                return;
+            }
+            res.json({ success: true });
+        }
+        catch (error) {
+            console.error('Error updating routine:', error);
+            res.status(500).json({ error: 'Failed to update routine' });
+        }
+    });
+    // API: Delete a routine
+    router.delete('/api/routines/:id', async (req, res) => {
+        try {
+            const routineId = parseInt(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+            const ok = await service.deleteRoutine(routineId);
+            if (!ok) {
+                res.status(404).json({ error: 'Routine not found' });
+                return;
+            }
+            res.json({ success: true });
+        }
+        catch (error) {
+            console.error('Error deleting routine:', error);
+            res.status(500).json({ error: 'Failed to delete routine' });
+        }
+    });
     return router;
 }
 //# sourceMappingURL=index.js.map

@@ -1,6 +1,6 @@
 {
   "name": "worker-que",
-  "version": "1.1.6",
+  "version": "1.1.7",
   "description": "A TypeScript job queue library for PostgreSQL with real-time web dashboard, SSL support, and cross-language compatibility",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
